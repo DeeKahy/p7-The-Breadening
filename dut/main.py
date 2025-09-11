@@ -13,14 +13,15 @@ queue = []
 @app.get('/api/requesting/<clientno>')
 def requesting(clientno):
     global isAvailable, queue
-    queue.append(clientno)
     isAvailable = False
     if not queue:
+        queue.append(clientno)
         return "okay go right straight totally ahead"
 
+    queue.append(clientno)
 
-    return "You tried accessing 'single_converter' \
-    endpoint with value of 'menu' as " + str(clientno)
+    # needs to ping the actual ip instead of returning in the same request (maybe)
+    return "you have now been queued, i will return when " + str(queue[len(queue)-2]) +  "  has returned"
 
 
 
@@ -38,7 +39,7 @@ def returning(clientno):
         return "something seriously went wrong go fix anders"
 
 
-    return "Returning: " + str(clientno)
+    return "Returning: " + str(clientno) + "now " + str(queue[0]) + " is revieving the token i guess"
 
 
 
