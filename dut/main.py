@@ -1,25 +1,22 @@
-# Importing required functions 
+# Importing required functions
 from flask import Flask, request
 
-# Flask constructor 
+# Flask constructor
 app = Flask(__name__)
 
 
-isAvaialbe = True
+isAvailable = True
 queue = []
 
-# Single URL Converter 
 
 
 @app.get('/api/requesting/<clientno>')
 def requesting(clientno):
+    global isAvailable, queue
     queue.append(clientno)
+    isAvailable = False
     if not queue:
-        isAvaialbe = False
         return "okay go right straight totally ahead"
-    
-    isAvaialbe = False
-
 
 
     return "You tried accessing 'single_converter' \
@@ -29,6 +26,7 @@ def requesting(clientno):
 
 @app.get('/api/returning/<clientno>')
 def returning(clientno):
+    global isAvailable, queue
     if not queue:
         return "something seriously went wrong go fix anders"
 
@@ -38,13 +36,13 @@ def returning(clientno):
             isAvailable = True
     else:
         return "something seriously went wrong go fix anders"
-    
-        
+
+
     return "Returning: " + str(clientno)
 
 
 
-# Main Driver Function 
+# Main Driver Function
 if __name__ == '__main__':
     # Run the application on the local development server
     app.run(debug=True)
