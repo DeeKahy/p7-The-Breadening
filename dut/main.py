@@ -33,10 +33,10 @@ def returning(clientno):
         return "Not your turn yet, please wait until " + str(queue[0]) + " has returned"
     else:
         queue.pop(0)
+        isAvailable = True
 
     if len(queue) == 0:
-        isAvailable = True
-        return "Returning: " + str(clientno) + " queue is now empty" # Returns this when all clients are done.
+        return "Returning: " + str(clientno) + " queue is now empty"
     else:
         return "Returning: " + str(clientno) + " next is " + str(queue[0])
 
