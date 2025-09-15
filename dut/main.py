@@ -39,7 +39,10 @@ def returning(clientno):
         return "something seriously went wrong go fix anders"
 
 
-    return "Returning: " + str(clientno) + "now " + str(queue[0]) + " is revieving the token i guess"
+    if queue:
+        return "Returning: " + str(clientno) + " now " + str(queue[0]) + " is revieving the token i guess"
+    else:
+        return "Returning: " + str(clientno) + " queue is now empty, resource is available"
 
 
 
