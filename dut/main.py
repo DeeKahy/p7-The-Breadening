@@ -33,8 +33,12 @@ def returning(clientno):
         return "Not your turn yet, please wait until " + str(queue[0]) + " has returned"
     else:
         queue.pop(0)
-        return "Returning: " + str(clientno) + " queue is now empty, resource is available"
 
+    if len(queue) == 0:
+        isAvailable = True
+        return "Returning: " + str(clientno) + " queue is now empty" # Returns this when all clients are done.
+    else:
+        return "Returning: " + str(clientno) + " next is " + str(queue[0])
 
 # Main Driver Function
 if __name__ == '__main__':
