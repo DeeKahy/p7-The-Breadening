@@ -34,10 +34,6 @@ def returning(clientno):
     else:
         queue.pop(0)
         isAvailable = True
-
-    if len(queue) == 0:
-        return "Returning: " + str(clientno) + " queue is now empty"
-    else:
         return "Returning: " + str(clientno) + " next is " + str(queue[0])
 
 # Main Driver Function
