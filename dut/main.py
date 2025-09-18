@@ -13,13 +13,16 @@ queue = []
 def requesting(clientno):
     global isAvailable, queue
 
-    queue.append(clientno)
+    if clientno not in queue:
+        queue.append(clientno)
 
-    if len(queue) == 1 and isAvailable:
+    if queue.index(clientno) == 0 and isAvailable:
         isAvailable = False
         return "okay go right straight totally ahead"
-    elif (len(queue) - 1) > 0:
-        return "you have now been queued, i will return when " + str(queue[len(queue)-2]) +  "  has returned"
+    elif queue.index(clientno) > 0:
+        return "you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
+    else:
+        return "you are already in the queue, please wait until client[" + str(queue.index(clientno) - 1 ) + "] has returned"
 
 
 @app.get('/api/returning/<clientno>')
@@ -29,12 +32,20 @@ def returning(clientno):
     if not queue:
         return "something seriously went wrong go fix anders"
 
-    if clientno !=  queue[0]:
-        return "Not your turn yet, please wait until " + str(queue[0]) + " has returned"
+    if clientno != queue[0]:
+        if clientno in queue:
+            return "Not your turn yet, please wait until client[" + str(queue.index(clientno) - 1 ) + "] has returned"
+        else:
+            return "You are not in the queue"
     else:
         queue.pop(0)
-        isAvailable = True
-        return "Returning: " + str(clientno) + " next is " + str(queue[0])
+
+        if queue:
+            isAvailable = False
+            return "Returning: " + str(clientno) + " next is " + str(queue[0])
+        else:
+            isAvailable = True
+            return "Queue is now empty."
 
 # Main Driver Function
 if __name__ == '__main__':

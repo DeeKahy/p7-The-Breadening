@@ -3,23 +3,27 @@ import requests
 import random
 import time
 import threading
-from threading import Thread
+from threading import Thread, Lock
 
 # Server configuration
 SERVER_URL = "http://localhost:5000"
 active_clients = []
+waiting_clients = []
+completed_clients = []
 client_counter = 0
+lock = Lock()
 
 def make_request(client_id):
     """Make a request to the server and handle the response"""
     global active_clients
+
     try:
         response = requests.get(f"{SERVER_URL}/api/requesting/{client_id}")
         print(f"Client {client_id} requested: {response.text}")
 
-        # Add to active clients if request was successful
-        if client_id not in active_clients:
-            active_clients.append(client_id)
+        with lock:
+            if client_id not in active_clients:
+                active_clients.append(client_id)
 
         # Schedule a return after random time (2-10 seconds)
         return_delay = random.uniform(2, 10)
@@ -37,25 +41,39 @@ def make_request(client_id):
 
 def schedule_return(client_id, delay):
     """Wait and then make a return request"""
-    global active_clients
+    global active_clients, waiting_clients, completed_clients
+
     time.sleep(delay)
 
-    try:
-        response = requests.get(f"{SERVER_URL}/api/returning/{client_id}")
-        print(f"Client {client_id} returned: {response.text}")
+    with lock:
+        if client_id not in waiting_clients:
+            waiting_clients.append(client_id)
 
-        # Remove from active clients
-        if client_id in active_clients:
-            active_clients.remove(client_id)
+    while True:
+        try:
+            response = requests.get(f"{SERVER_URL}/api/returning/{client_id}")
+            print(f"Client {client_id} returned: {response.text}")
 
-    except requests.exceptions.ConnectionError:
-        print(f"Client {client_id} failed to return - server connection lost")
-    except Exception as e:
-        print(f"Client {client_id} return error: {e}")
+            # Loop and keep retrying
+            if "Not your turn yet" in response.text:
+                print("Not your turn yet. Will try again soon")
+                time.sleep(5)
+                continue
+            else: # Successful return
+                with lock:
+                    active_clients.remove(client_id)
+                    waiting_clients.remove(client_id)
+                    completed_clients.append(client_id)
+                return "Successfully returned"
+
+        except requests.exceptions.ConnectionError:
+            print(f"Client {client_id} failed to return - server connection lost")
+        except Exception as e:
+            print(f"Client {client_id} return error: {e}")
 
 def simulate_random_clients():
     """Main simulation loop that creates random client requests"""
-    global client_counter
+    global client_counter, active_clients
 
     print("Starting client simulation...")
     print("Press Ctrl+C to stop")
@@ -89,7 +107,8 @@ def status_monitor():
         print(f"\n=== STATUS UPDATE ===")
         print(f"Total clients created: {client_counter}")
         print(f"Currently active: {len(active_clients)}")
-        print(f"Active client IDs: {active_clients}")
+        print(f"Currently waiting: {len(waiting_clients)}")
+        print(f"Completed clients: {len(completed_clients)}")
         print("====================\n")
 
 # Main Driver Function
