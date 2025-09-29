@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?><!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_1.dtd'><nta><declaration>chan tick;
+const int p = 250;
+const int t = 50;
+</declaration><template><name x="5" y="5">Ticker</name><declaration>clock x;
+int n=0;
+</declaration><location id="id0" x="192" y="128"><name x="208" y="104">s</name><label kind="invariant" x="160" y="144">x&lt;=(n+1)*p+t</label></location><init ref="id0"/><transition><source ref="id0"/><target ref="id0"/><label kind="guard" x="160" y="64">x&gt;=(n+1)*p-t</label><label kind="synchronisation" x="160" y="80">tick!</label><label kind="assignment" x="160" y="96">n++</label><nail x="152" y="128"/><nail x="152" y="64"/><nail x="248" y="64"/><nail x="248" y="128"/></transition></template><template><name x="5" y="5">TickObserver</name><location id="id1" x="224" y="200"></location><init ref="id1"/><transition><source ref="id1"/><target ref="id1"/><label kind="synchronisation" x="272" y="192">tick?</label><nail x="264" y="176"/><nail x="264" y="224"/></transition></template><system>
+system Ticker, TickObserver;
+
+/*
+input tick(ticking.n);
+output ;
+*/</system></nta>

@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='utf-8'?><!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.0//EN' 'http://www.docs.uu.se/docs/rtmv/uppaal/xml/flat-1_0.dtd'><nta><declaration>// delays in the adapter:
+const int maxDelay = 2; // &gt;=1
+const int minDelay = 0; // &gt;=0, &lt;=maxDelay
+
+// environment speed:
+const int lazyness = 3; // &gt;=maxDelay - for single entry in adapter buffer
+const int eagerness = 50;
+
+chan Click, receiveClick, sendSingle, SingleClick, sendDouble, DoubleClick;
+</declaration><template><name x="5" y="5">Button</name><parameter>chan &amp;click, chan &amp;single, chan &amp;double</parameter><declaration>clock x;</declaration><location id="id0" x="32" y="80"><name x="22" y="50">idle</name></location><location id="id1" x="192" y="80"><name x="176" y="48">many</name><urgent/></location><location id="id2" x="192" y="224"><name x="200" y="200">one</name><label kind="invariant" x="182" y="239">x&lt;21</label></location><init ref="id0"/><transition><source ref="id1"/><target ref="id0"/><label kind="synchronisation" x="80" y="64">double!</label></transition><transition><source ref="id0"/><target ref="id2"/><label kind="synchronisation" x="96" y="120">click?</label><label kind="assignment" x="112" y="136">x=0</label></transition><transition><source ref="id2"/><target ref="id1"/><label kind="guard" x="192" y="144">x&lt;20</label><label kind="synchronisation" x="192" y="160">click?</label></transition><transition><source ref="id2"/><target ref="id0"/><label kind="guard" x="40" y="192">x&gt;=20</label><label kind="synchronisation" x="40" y="208">single!</label><nail x="32" y="224"/></transition><transition><source ref="id1"/><target ref="id1"/><label kind="synchronisation" x="208" y="64">click?</label><nail x="256" y="80"/><nail x="256" y="128"/><nail x="192" y="128"/></transition></template><template><name x="5" y="5">Adapter</name><parameter>chan &amp;receive, chan &amp;send, const int mind, const int maxd</parameter><declaration>clock x;</declaration><location id="id3" x="160" y="96"><name x="150" y="66">idle</name></location><location id="id4" x="160" y="224"><name x="128" y="192">min</name><label kind="invariant" x="128" y="232">x&lt;maxd</label></location><location id="id5" x="288" y="224"><name x="296" y="192">max</name><label kind="invariant" x="256" y="232">x&lt;maxd</label></location><init ref="id3"/><transition><source ref="id3"/><target ref="id4"/><label kind="synchronisation" x="128" y="144">receive?</label><label kind="assignment" x="128" y="160">x=0</label></transition><transition><source ref="id5"/><target ref="id3"/><label kind="guard" x="216" y="80">x&gt;=mind</label><label kind="synchronisation" x="248" y="96">send!</label><nail x="288" y="96"/></transition><transition><source ref="id4"/><target ref="id3"/><label kind="guard" x="192" y="136">x&gt;=mind</label><label kind="synchronisation" x="192" y="152">send!</label><nail x="224" y="192"/><nail x="224" y="128"/></transition><transition><source ref="id4"/><target ref="id5"/><label kind="guard" x="184" y="208">x&gt;maxd-1</label></transition></template><template><name x="5" y="5">Environment</name><parameter>chan &amp;click, chan &amp;single, chan &amp;double</parameter><declaration>clock x;</declaration><location id="id6" x="32" y="64"><name x="0" y="48">s1</name><label kind="invariant" x="-80" y="64">x&lt;eagerness</label></location><init ref="id6"/><transition><source ref="id6"/><target ref="id6"/><label kind="guard" x="-8" y="-32">x&gt;=lazyness</label><label kind="synchronisation" x="16" y="-16">click!</label><label kind="assignment" x="16" y="0">x=0</label><nail x="4" y="0"/><nail x="64" y="0"/></transition><transition><source ref="id6"/><target ref="id6"/><label kind="synchronisation" x="8" y="128">double?</label><nail x="0" y="128"/><nail x="64" y="128"/></transition><transition><source ref="id6"/><target ref="id6"/><label kind="synchronisation" x="72" y="56">single?</label><nail x="96" y="32"/><nail x="96" y="96"/></transition></template><system>iut=Button(receiveClick, sendSingle, sendDouble);
+aClick=Adapter(Click, receiveClick, minDelay, maxDelay);
+aSingle=Adapter(sendSingle, SingleClick, minDelay, maxDelay);
+aDouble=Adapter(sendDouble, DoubleClick, minDelay, maxDelay);
+env=Environment(Click, SingleClick, DoubleClick);
+
+system iut, env, aClick, aSingle, aDouble;
+
+/*
+input Click();
+output SingleClick(), DoubleClick();
+
+precision 10000; // time in microseconds
+timeout 100000;
+*/</system></nta>

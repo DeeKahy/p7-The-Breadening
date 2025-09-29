@@ -1,0 +1,118 @@
+<project name="Smartlamp" default="help" basedir=".">
+
+  <!-- set global properties for this build -->
+  <property environment="env"/>
+
+  <patternset id="resources">
+    <include name="com/uppaal/smartlamp/bulb.png"/>
+    <include name="com/uppaal/smartlamp/bigbulb.png"/>
+  </patternset>
+
+  <target name="help">
+    <echo level="info">The following targets are supported:
+
+help     Print this message.
+compile  Compile sources from src/ to build/.
+jar      Build dist/smartlamp.jar
+dist     Optimize and obfuscate dist/smartlamp.jar
+doc      Generate javadoc.
+clean    Delete build/ directory and generated jar file.
+
+</echo>
+  </target>
+
+  <target name="init">
+    <!-- Create the build directory structure used by compile -->
+    <mkdir dir="build"/>
+    <mkdir dir="dist"/>
+  </target>
+
+  <!-- Compile the java source code in the src/ directory. The result
+       is stored in the build/ directory.
+  -->
+  <target name="compile" depends="init">
+    <dependset>
+      <srcfileset dir="src" includes="**/*.java"/>
+      <targetfileset dir="build" includes="**/*.class"/>
+    </dependset>
+
+    <javac srcdir="src" destdir="build" optimize="on" debug="on"
+           includes="com/uppaal/smartlamp/Main.java" deprecation="on"
+	   target="1.5">
+      <!-- <compilerarg line="-Xlint:unchecked"/> -->
+    </javac>
+    <javac srcdir="src" destdir="build" optimize="on" debug="on"
+           includes="com/uppaal/autoofflamp/Main.java" deprecation="on"
+	   target="1.5">
+    </javac>
+    <javac srcdir="src" destdir="build" optimize="on" debug="on"
+           includes="com/uppaal/dummy/Main.java" deprecation="on"
+	   target="1.5">
+    </javac>
+  </target>
+
+  <target name="doc" depends="compile">
+    <mkdir dir="doc"/>
+    <javadoc source="1.5" destdir="doc">
+      <packageset dir="src" defaultexcludes="yes">
+	<include name="com/uppaal/**"/>
+      </packageset>
+    </javadoc>
+  </target>
+
+  <!-- Create jar files -->
+  <target name="jar" depends="compile">
+    <jar jarfile="dist/smartlamp.jar" manifest="manifest">
+      <fileset dir="build" includes="com/uppaal/tron/**"/>
+      <fileset dir="build" includes="com/uppaal/smartlamp/**"/>
+      <fileset dir="build" includes="com/uppaal/autoofflamp/**"/>
+      <fileset dir="build" includes="com/uppaal/dummy/**"/>
+      <fileset dir="src">
+        <patternset refid="resources"/>
+      </fileset>
+    </jar>
+  </target>
+
+  <target name="dist" depends="jar">
+    <taskdef name="proguard" classname="proguard.ant.ProGuardTask"
+             classpath="${proguardhome}/proguard.jar"/>
+
+    <move file="dist/smartlamp.jar" tofile="dist/in.jar"/>
+
+    <proguard printseeds="dist/seeds" 
+	      overloadaggressively="on" 
+	      defaultpackage="" 
+	      printmapping="dist/mapping"
+	      skipnonpubliclibraryclasses="false"
+	      flattenpackagehierarchy="on"
+	      repackageclasses="on"
+	      allowaccessmodification="on">
+      <libraryjar name="${java.home}/lib/rt.jar"/>
+      
+      <injar name="dist/in.jar"/>
+      <outjar name="dist/smartlamp.jar"/>
+
+      <keep access="public" name="com.uppaal.smartlamp.Main">
+        <method access="public static" name="main"/>
+	<field access="public static"/>
+      </keep>
+      <keep access="public" name="com.uppaal.autoofflamp.Main">
+        <method access="public static" name="main"/>
+	<field access="public static"/>
+      </keep>
+      <keep access="public" name="com.uppaal.dummy.Main">
+        <method access="public static" name="main"/>
+	<field access="public static"/>
+      </keep>
+    </proguard>
+    <delete file="dist/in.jar"/>
+  </target>
+
+  <!-- Delete the build directory tree and the jar file -->
+  <target name="clean">
+    <delete dir="build"/>
+    <delete file="dist/smartlamp.jar"/>
+    <delete file="dist/in.jar"/>
+  </target>
+
+</project>

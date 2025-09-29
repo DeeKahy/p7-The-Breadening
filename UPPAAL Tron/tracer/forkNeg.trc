@@ -1,0 +1,10 @@
+delay [0.0,1.0];
+
+output intDelay();
+delay [0.0,1.0];
+output grasp();
+delay [0.0,6.9];
+output release();
+delay 3.0;
+output level();
+delay 100.0;

@@ -1,0 +1,16 @@
+input High();
+delay 5.0, *;
+output On();
+input Low();
+delay 5.0;
+output Off();
+input High();
+delay 5000;
+output On();
+input Low();
+delay 300;
+output Off();
+input Med();
+output On();
+input Low();
+output Off();

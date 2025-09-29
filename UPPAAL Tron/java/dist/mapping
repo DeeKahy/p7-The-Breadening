@@ -1,0 +1,343 @@
+com.uppaal.autoofflamp.AutoOffLamp -> on.h:
+    com.uppaal.autoofflamp.AutoOffLamp$Loc location -> a
+    java.util.concurrent.locks.Lock lock -> a
+    java.util.concurrent.locks.Condition cond -> a
+    boolean started -> a
+    com.uppaal.tron.Reporter reporter -> a
+    com.uppaal.smartlamp.Dimmer dimmer -> a
+    boolean $assertionsDisabled -> b
+    void setReporter(com.uppaal.tron.Reporter) -> a
+    void waitForStart() -> e
+    void run() -> run
+    void handleGrasp() -> f
+    void handleRelease() -> g
+    void handleTouch() -> h
+com.uppaal.autoofflamp.AutoOffLamp$1 -> on.m:
+    int[] $SwitchMap$com$uppaal$autoofflamp$AutoOffLamp$Loc -> a
+com.uppaal.autoofflamp.AutoOffLamp$Loc -> on.H:
+    com.uppaal.autoofflamp.AutoOffLamp$Loc Off -> a
+    com.uppaal.autoofflamp.AutoOffLamp$Loc On -> b
+    com.uppaal.autoofflamp.AutoOffLamp$Loc[] $VALUES -> a
+    com.uppaal.autoofflamp.AutoOffLamp$Loc[] values() -> a
+com.uppaal.autoofflamp.Main -> com.uppaal.autoofflamp.Main:
+    boolean $assertionsDisabled -> a
+    void initialize() -> a
+    void mousePressed(java.awt.event.MouseEvent) -> mousePressed
+    void mouseReleased(java.awt.event.MouseEvent) -> mouseReleased
+    void mouseClicked(java.awt.event.MouseEvent) -> mouseClicked
+    void main(java.lang.String[]) -> main
+com.uppaal.dummy.Dummy -> on.y:
+    com.uppaal.dummy.Dummy$Loc location -> a
+    java.util.concurrent.locks.Lock lock -> a
+    java.util.concurrent.locks.Condition cond -> a
+    boolean started -> a
+    com.uppaal.dummy.DummyListener listener -> a
+    void setDummyListener(com.uppaal.dummy.DummyListener) -> a
+    void waitForStart() -> a_
+    void run() -> run
+    void handleMyInput1() -> b_
+    void handleMyInput2() -> c
+com.uppaal.dummy.Dummy$1 -> on.K:
+    int[] $SwitchMap$com$uppaal$dummy$Dummy$Loc -> a
+com.uppaal.dummy.Dummy$Loc -> on.G:
+    com.uppaal.dummy.Dummy$Loc Idle -> a
+    com.uppaal.dummy.Dummy$Loc Busy -> b
+    com.uppaal.dummy.Dummy$Loc[] $VALUES -> a
+    com.uppaal.dummy.Dummy$Loc[] values() -> a
+com.uppaal.dummy.DummyInterface -> on.x:
+    void start() -> start
+    void waitForStart() -> a_
+    void join() -> join
+    void setDummyListener(com.uppaal.dummy.DummyListener) -> a
+    void handleMyInput1() -> b_
+    void handleMyInput2() -> c
+com.uppaal.dummy.DummyListener -> on.F:
+    void reportMyOutput() -> e
+    void disconnect() -> f
+com.uppaal.dummy.Main -> com.uppaal.dummy.Main:
+    com.uppaal.dummy.DummyInterface dummy -> a
+    com.uppaal.dummy.TestIOHandler testIOHandler -> a
+    int mutant -> a
+    void handleArguments(java.lang.String[]) -> a
+    void main(java.lang.String[]) -> main
+com.uppaal.dummy.TestIOHandler -> on.s:
+    boolean DBG -> a
+    java.util.concurrent.locks.Lock lock -> a
+    java.util.concurrent.locks.Condition cond -> a
+    java.util.LinkedList inputBuffer -> a
+    int myInput1 -> a
+    int myInput2 -> b
+    int myOutput -> c
+    com.uppaal.tron.Reporter reporter -> a
+    com.uppaal.dummy.DummyInterface dummy -> a
+    void configure(com.uppaal.tron.Reporter) -> a
+    void perform$487101bc(int) -> a_
+    void run() -> run
+    void reportMyOutput() -> e
+    void disconnect() -> f
+com.uppaal.smartlamp.Dimmer -> on.I:
+    boolean started -> a
+    com.uppaal.smartlamp.Dimmer$Loc location -> a
+    com.uppaal.smartlamp.Dimmer$LightState lightState -> a
+    int level -> a
+    int oldLevel -> b
+    int maxLevels -> c
+    long nextUpdate -> a
+    java.util.ArrayList listeners -> a
+    java.util.concurrent.locks.Lock lock -> a
+    java.util.concurrent.locks.Condition cond -> a
+    void waitForStart() -> h
+    com.uppaal.smartlamp.Dimmer create(int,int) -> a
+    void run() -> run
+    void execute() -> g
+    void handleTouch() -> e
+    void handleStartHold(long) -> a
+    void handleEndHold() -> f
+    void setLevel(int) -> a
+    void addLevelListener(com.uppaal.smartlamp.LevelListener) -> a
+com.uppaal.smartlamp.Dimmer$LightState -> on.a:
+    com.uppaal.smartlamp.Dimmer$LightState LightOff -> a
+    com.uppaal.smartlamp.Dimmer$LightState LightOn -> b
+    com.uppaal.smartlamp.Dimmer$LightState[] $VALUES -> a
+    com.uppaal.smartlamp.Dimmer$LightState[] values() -> a
+com.uppaal.smartlamp.Dimmer$Loc -> on.p:
+    com.uppaal.smartlamp.Dimmer$Loc UpPassive -> a
+    com.uppaal.smartlamp.Dimmer$Loc UpActive -> b
+    com.uppaal.smartlamp.Dimmer$Loc DnPassive -> c
+    com.uppaal.smartlamp.Dimmer$Loc DnActive -> d
+    com.uppaal.smartlamp.Dimmer$Loc[] $VALUES -> a
+    com.uppaal.smartlamp.Dimmer$Loc[] values() -> a
+com.uppaal.smartlamp.DimmerM0 -> on.e:
+    void handleTouch() -> e
+    void handleStartHold(long) -> a
+    void handleEndHold() -> f
+    void execute() -> g
+    void setLevel(int) -> a
+    void addLevelListener(com.uppaal.smartlamp.LevelListener) -> a
+com.uppaal.smartlamp.DimmerM0$1 -> on.r:
+    int[] $SwitchMap$com$uppaal$smartlamp$Dimmer$LightState -> a
+    int[] $SwitchMap$com$uppaal$smartlamp$Dimmer$Loc -> b
+com.uppaal.smartlamp.DimmerM1 -> on.j:
+    void handleTouch() -> e
+    void handleStartHold(long) -> a
+    void handleEndHold() -> f
+    void execute() -> g
+    void setLevel(int) -> a
+    void addLevelListener(com.uppaal.smartlamp.LevelListener) -> a
+com.uppaal.smartlamp.DimmerM1$1 -> on.v:
+    int[] $SwitchMap$com$uppaal$smartlamp$Dimmer$LightState -> a
+    int[] $SwitchMap$com$uppaal$smartlamp$Dimmer$Loc -> b
+com.uppaal.smartlamp.DimmerM2 -> on.i:
+    void handleTouch() -> e
+    void handleStartHold(long) -> a
+    void handleEndHold() -> f
+    void execute() -> g
+    void setLevel(int) -> a
+    void addLevelListener(com.uppaal.smartlamp.LevelListener) -> a
+com.uppaal.smartlamp.DimmerM2$1 -> on.g:
+    int[] $SwitchMap$com$uppaal$smartlamp$Dimmer$LightState -> a
+    int[] $SwitchMap$com$uppaal$smartlamp$Dimmer$Loc -> b
+com.uppaal.smartlamp.LampInterface -> on.k:
+    void start() -> start
+    void waitForStart() -> e
+    void join() -> join
+    void setReporter(com.uppaal.tron.Reporter) -> a
+    void handleGrasp() -> f
+    void handleRelease() -> g
+    void handleTouch() -> h
+com.uppaal.smartlamp.LevelBar -> on.q:
+    int max -> a
+    int current -> b
+    void paint(java.awt.Graphics) -> paint
+    void levelChanged(int) -> a
+com.uppaal.smartlamp.LevelHistory -> on.B:
+    int max -> a
+    int current -> b
+    int[] history -> a
+    int len -> c
+    int gridLineCount -> d
+    java.awt.Image img -> a
+    java.awt.Dimension my -> a
+    int phase -> e
+    int stepSize -> f
+    boolean alive -> a
+    java.util.concurrent.locks.Lock lock -> a
+    java.util.concurrent.locks.Condition cond -> a
+    void setAlive(boolean) -> a
+    void waitForReady() -> a
+    void run() -> run
+    void levelChanged(int) -> a
+    void paint(java.awt.Graphics) -> paint
+    void update(java.awt.Graphics) -> update
+    void drawSelf() -> b
+com.uppaal.smartlamp.LevelLamp -> on.u:
+    int max -> a
+    int current -> b
+    java.awt.Image image -> a
+    java.awt.Dimension size -> a
+    void update(java.awt.Graphics) -> update
+    void paint(java.awt.Graphics) -> paint
+    void levelChanged(int) -> a
+com.uppaal.smartlamp.LevelListener -> on.z:
+    void levelChanged(int) -> a
+com.uppaal.smartlamp.Main -> com.uppaal.smartlamp.Main:
+    com.uppaal.smartlamp.LampInterface lamp -> a
+    com.uppaal.smartlamp.Dimmer dimmer -> a
+    com.uppaal.tron.Reporter reporter -> a
+    com.uppaal.smartlamp.TestIOHandler testIOHandler -> a
+    int mutant -> a
+    int levelCount -> b
+    boolean withGUI -> a
+    boolean $assertionsDisabled -> b
+    void handleArguments(java.lang.String[]) -> a
+    void initialize() -> a
+    void play() -> b
+    void mousePressed(java.awt.event.MouseEvent) -> mousePressed
+    void mouseReleased(java.awt.event.MouseEvent) -> mouseReleased
+    void main(java.lang.String[]) -> main
+com.uppaal.smartlamp.Main$1 -> on.L:
+    void windowClosing(java.awt.event.WindowEvent) -> windowClosing
+com.uppaal.smartlamp.SmartLamp -> on.n:
+    com.uppaal.smartlamp.SmartLamp$Loc location -> a
+    java.util.concurrent.locks.Lock lock -> a
+    java.util.concurrent.locks.Condition cond -> a
+    boolean started -> a
+    long graspTime -> a
+    com.uppaal.tron.Reporter reporter -> a
+    com.uppaal.smartlamp.Dimmer dimmer -> a
+    boolean $assertionsDisabled -> b
+    void setReporter(com.uppaal.tron.Reporter) -> a
+    void waitForStart() -> e
+    void run() -> run
+    void handleGrasp() -> f
+    void handleRelease() -> g
+    void handleTouch() -> h
+com.uppaal.smartlamp.SmartLamp$1 -> on.l:
+    int[] $SwitchMap$com$uppaal$smartlamp$SmartLamp$Loc -> a
+com.uppaal.smartlamp.SmartLamp$Loc -> on.J:
+    com.uppaal.smartlamp.SmartLamp$Loc Idle -> a
+    com.uppaal.smartlamp.SmartLamp$Loc Ignoring -> b
+    com.uppaal.smartlamp.SmartLamp$Loc Alert -> c
+    com.uppaal.smartlamp.SmartLamp$Loc Holding -> d
+    com.uppaal.smartlamp.SmartLamp$Loc[] $VALUES -> a
+    com.uppaal.smartlamp.SmartLamp$Loc[] values() -> a
+com.uppaal.smartlamp.SmartLampM3 -> on.w:
+    com.uppaal.smartlamp.SmartLampM3$Loc location -> a
+    java.util.concurrent.locks.Lock lock -> a
+    java.util.concurrent.locks.Condition cond -> a
+    boolean started -> a
+    long graspTime -> a
+    com.uppaal.tron.Reporter reporter -> a
+    com.uppaal.smartlamp.Dimmer dimmer -> a
+    boolean $assertionsDisabled -> b
+    void setReporter(com.uppaal.tron.Reporter) -> a
+    void waitForStart() -> e
+    void run() -> run
+    void handleGrasp() -> f
+    void handleRelease() -> g
+    void handleTouch() -> h
+com.uppaal.smartlamp.SmartLampM3$1 -> on.E:
+    int[] $SwitchMap$com$uppaal$smartlamp$SmartLampM3$Loc -> a
+com.uppaal.smartlamp.SmartLampM3$Loc -> on.d:
+    com.uppaal.smartlamp.SmartLampM3$Loc Idle -> a
+    com.uppaal.smartlamp.SmartLampM3$Loc Ignoring -> b
+    com.uppaal.smartlamp.SmartLampM3$Loc Alert -> c
+    com.uppaal.smartlamp.SmartLampM3$Loc Holding -> d
+    com.uppaal.smartlamp.SmartLampM3$Loc[] $VALUES -> a
+    com.uppaal.smartlamp.SmartLampM3$Loc[] values() -> a
+com.uppaal.smartlamp.TestIOHandler -> on.D:
+    boolean DBG -> a
+    java.util.concurrent.locks.Lock lock -> a
+    java.util.concurrent.locks.Condition cond -> a
+    java.util.LinkedList inputBuffer -> a
+    int inputGrasp -> a
+    int inputRelease -> b
+    int inputTouch -> c
+    int outputSetLevel -> d
+    int[] pLevel -> a
+    com.uppaal.tron.Reporter reporter -> a
+    com.uppaal.smartlamp.LampInterface lamp -> a
+    void configure(com.uppaal.tron.Reporter) -> a
+    void perform$487101bc(int) -> a_
+    void run() -> run
+    void levelChanged(int) -> a
+com.uppaal.tron.Adapter -> on.c:
+    void configure(com.uppaal.tron.Reporter) -> a
+    void perform$487101bc(int) -> a_
+com.uppaal.tron.Reporter -> on.f:
+    boolean DBG -> a
+    java.io.DataInputStream is -> a
+    java.io.DataOutputStream os -> a
+    com.uppaal.tron.Adapter adapter -> a
+    boolean abort -> b
+    java.lang.Object lock -> a
+    int acks -> a
+    java.net.ServerSocket server -> a
+    java.lang.String host -> a
+    int port -> b
+    boolean connected -> c
+    java.lang.String readString() -> a
+    void writeString(java.lang.String) -> a
+    int addInput(java.lang.String) -> a
+    int addOutput(java.lang.String) -> b
+    void addVarToOutput(int,java.lang.String) -> a
+    void setTimeUnit(long) -> a
+    void setTimeout(int) -> a
+    void disconnect() -> e
+    void shutdown() -> f
+    void run() -> run
+    java.lang.String getErrorMessage(int) -> a
+    void report(int) -> b
+    void report(int,int[]) -> a
+com.uppaal.tron.TronException -> on.A:
+com.uppaal.tron.VirtualCondition -> on.C:
+    int id -> a
+    com.uppaal.tron.VirtualLock lock -> a
+    java.lang.String name -> a
+    void await() -> await
+    boolean await(long,java.util.concurrent.TimeUnit) -> await
+    long awaitNanos(long) -> awaitNanos
+    void awaitUninterruptibly() -> awaitUninterruptibly
+    boolean awaitUntil(java.util.Date) -> awaitUntil
+    void signal() -> signal
+    void signalAll() -> signalAll
+com.uppaal.tron.VirtualLock -> on.o:
+    int id -> a
+    com.uppaal.tron.VirtualThread owner -> a
+    java.util.concurrent.locks.ReentrantLock l -> a
+    java.lang.String name -> a
+    com.uppaal.tron.VirtualThread getOwner() -> a
+    void setOwner(com.uppaal.tron.VirtualThread) -> a
+    void lock() -> lock
+    void lockInterruptibly() -> lockInterruptibly
+    boolean tryLock() -> tryLock
+    boolean tryLock(long,java.util.concurrent.TimeUnit) -> tryLock
+    java.util.concurrent.locks.Condition newCondition() -> newCondition
+    void unlock() -> unlock
+com.uppaal.tron.VirtualThread -> on.b:
+    boolean DBG -> a
+    java.lang.String host -> a
+    int port -> a
+    java.lang.Object lock -> a
+    java.io.DataInputStream is -> a
+    java.io.DataOutputStream os -> a
+    boolean realtime() -> a
+    boolean virtualtime() -> b
+    void setRemoteClock(java.lang.String,int) -> a
+    void start() -> start
+    void deactivate() -> a
+    void activate() -> b
+    void quit() -> c_
+    int mutexInit() -> a
+    void mutexLock(com.uppaal.tron.VirtualLock) -> a
+    void mutexUnlock(com.uppaal.tron.VirtualLock) -> b
+    int condInit() -> b
+    void condWait(com.uppaal.tron.VirtualCondition) -> a
+    boolean condDelay(com.uppaal.tron.VirtualCondition,long,java.util.concurrent.TimeUnit) -> a
+    boolean condWait(com.uppaal.tron.VirtualCondition,long) -> a
+    void condSignal$3e9df5f4() -> d
+    void condBroadcast(com.uppaal.tron.VirtualCondition) -> b
+    long getTime() -> b
+    long getTimeMillis() -> a
+com.uppaal.tron.VirtualThread$1 -> on.t:
+    int[] $SwitchMap$java$util$concurrent$TimeUnit -> a

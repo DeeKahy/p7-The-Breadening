@@ -1,0 +1,11 @@
+delay 200.0,*;
+output grasp();
+delay 200.0,*;
+delay 200.0,*;
+delay 200.0,*;
+delay 200.0,*;
+delay 200.0,*;
+delay 200.0,*;
+delay 200.0,*;
+output release();
+delay 200.0,*;
