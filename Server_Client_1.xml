@@ -14,31 +14,33 @@ typedef int [0,N-1] ID;
 ID c_id;
 
 int i = 1;
-int dequeue(int queue[N], int N, ID c_id) {
+int dequeue(int N) {
     int first = queue[0];
     for (i = 1; i &lt; N; i++) {
         queue[i - 1] = queue[i];
     }
-    queue[qsize-1] = 0;  // optional "clear"
+    tail = (tail+N-1) % N;
+    if (qsize &gt;=2)
+        queue[qsize-1] = 0;  // optional "clear"
     return first;
 }
 
-bool contains(int id) {
+bool contains(int queue[N], ID c_id) {
     for (i = 0; i &lt; qsize; i++) { //check if ID is already in the queue
         int idx = (head + i) % N;
-        if(queue[idx] == id)
+        if(queue[idx] == c_id)
             return true;
     }
     return false;
 }
 
-bool enqueue(int queue[N], int N, int id) {
+bool enqueue(int N, ID c_id) {
     if(qsize == N)
         return false;
-    if(contains(id))
+    if(contains(queue, c_id))
         return false;
     tail = (tail+1) % N;
-    queue[tail] = id;
+    queue[tail] = c_id;
     qsize++;
     return true;
 }
@@ -116,16 +118,17 @@ int front(int queue[N], int N){
 			<source ref="id9"/>
 			<target ref="id7"/>
 			<label kind="guard" x="-408" y="34">qsize &gt;= 1</label>
-			<label kind="synchronisation" x="-425" y="8">grant[c_id]!</label>
+			<label kind="synchronisation" x="-425" y="8">grant[next_c_id]!</label>
 			<nail x="-323" y="25"/>
 		</transition>
 		<transition id="id12">
 			<source ref="id7"/>
 			<target ref="id9"/>
 			<label kind="select" x="-272" y="-17">c_id:ID</label>
-			<label kind="synchronisation" x="-272" y="34">done[c_id]?</label>
-			<label kind="assignment" x="-272" y="0">dequeue(queue,N,c_id),
-next_c_id = front(queue,N)</label>
+			<label kind="synchronisation" x="-272" y="0">done[c_id]?</label>
+			<label kind="assignment" x="-272" y="17">dequeue(N),
+next_c_id = front(queue,N),
+qsize--</label>
 		</transition>
 		<transition id="id13">
 			<source ref="id8"/>
@@ -148,8 +151,8 @@ next_c_id = front(queue,N)</label>
 			<target ref="id8"/>
 			<label kind="select" x="-161" y="51">id:ID</label>
 			<label kind="synchronisation" x="-162" y="67">req[id]?</label>
-			<label kind="assignment" x="-162" y="84">enqueue(queue,N,id),
-c_id = id</label>
+			<label kind="assignment" x="-162" y="84">c_id = id,
+enqueue(N,c_id)</label>
 		</transition>
 	</template>
 	<system>// Place template instantiations here.
