@@ -9,11 +9,12 @@ const int MAX_ID = N;
 chan req[N], grant[N], done[N];
 int queue[N];
 int head = 0, tail = -1, qsize = 0;
+int next_c_id;
 typedef int [0,N-1] ID;
-
+ID c_id;
 
 int i = 1;
-int dequeue(int queue[N], int N) {
+int dequeue(int queue[N], int N, ID c_id) {
     int first = queue[0];
     for (i = 1; i &lt; N; i++) {
         queue[i - 1] = queue[i];
@@ -40,6 +41,12 @@ bool enqueue(int queue[N], int N, int id) {
     queue[tail] = id;
     qsize++;
     return true;
+}
+
+int front(int queue[N], int N){
+    if(qsize == 0)    //check if the queue is empty
+        return -1;
+    return queue[head];
 }
 </declaration>
 	<template>
@@ -85,7 +92,7 @@ bool enqueue(int queue[N], int N, int id) {
 	<template>
 		<name x="5" y="5">Server</name>
 		<declaration>
-ID c_id;</declaration>
+</declaration>
 		<location id="id7" x="-289" y="119">
 			<name x="-340" y="119">begin</name>
 		</location>
@@ -118,7 +125,7 @@ ID c_id;</declaration>
 			<label kind="select" x="-272" y="-17">c_id:ID</label>
 			<label kind="synchronisation" x="-272" y="34">done[c_id]?</label>
 			<label kind="assignment" x="-272" y="0">dequeue(queue,N,c_id),
-next_c_id = front(queue)</label>
+next_c_id = front(queue,N)</label>
 		</transition>
 		<transition id="id13">
 			<source ref="id8"/>
