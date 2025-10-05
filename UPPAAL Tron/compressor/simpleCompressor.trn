@@ -1,4 +1,0 @@
-input High(), Low(), Med();
-output Off(), On();
-precision 1000;
-timeout 1000;

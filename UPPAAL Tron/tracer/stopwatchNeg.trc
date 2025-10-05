@@ -1,8 +1,0 @@
-delay [0.0,1.0];
-
-output stopw();
-delay [0.0,10.0];
-output step();
-input reply()[0.0,5.0];
-output step();
-delay 100.0;

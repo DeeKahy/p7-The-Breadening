@@ -1,7 +1,0 @@
-com.uppaal.smartlamp.Main
-com.uppaal.smartlamp.Main: void main(java.lang.String[])
-com.uppaal.autoofflamp.Main
-com.uppaal.autoofflamp.Main: void main(java.lang.String[])
-com.uppaal.smartlamp.Main: void main(java.lang.String[])
-com.uppaal.dummy.Main
-com.uppaal.dummy.Main: void main(java.lang.String[])

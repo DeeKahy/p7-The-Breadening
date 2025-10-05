@@ -1,3 +1,0 @@
-delay [2.0,3.0];
-output bound();
-delay 20.1, reply()[9.0,20.0];

@@ -1,5 +1,0 @@
-delay [0.0,1.0];
-output step();
-delay [0.0,1.0];
-output reset();
-delay [0.0,1.0];

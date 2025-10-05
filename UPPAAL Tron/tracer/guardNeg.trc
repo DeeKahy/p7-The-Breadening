@@ -1,8 +1,0 @@
-delay [0.0,1.0];
-
-output intDelay();
-delay [0.0,1.0];
-output grasp();
-delay [0.0,8.9];
-output level();
-delay 100.0;

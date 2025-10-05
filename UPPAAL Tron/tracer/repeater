@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-err=0
-while [ $err -eq 0 ]; do 
-    for trace in "$@" ; do
-	cat $trace
-	err=$?
-	if [ $err -ne 0 ] ; then break; fi
-    done
-done

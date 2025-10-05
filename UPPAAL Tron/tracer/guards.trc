@@ -1,4 +1,0 @@
-delay [0.0, 1.0];
-output guarded();
-delay 9.0;
-input reply();

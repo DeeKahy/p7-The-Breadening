@@ -1,4 +1,0 @@
-input level(adapLevel);
-output grasp(), release();
-precision 1000;
-timeout 1000;
