@@ -104,7 +104,6 @@ int front(int queue[N], int N){
 		</location>
 		<location id="id9" x="-289" y="-59">
 			<name x="-299" y="-93">returned</name>
-			<urgent/>
 		</location>
 		<init ref="id7"/>
 		<transition id="id10">
