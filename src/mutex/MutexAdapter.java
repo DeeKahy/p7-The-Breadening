@@ -15,13 +15,9 @@ public class MutexAdapter implements Adapter {
   private int IN_REQUEST, IN_RETURN;
   private int OUT_GRANTED, OUT_QUEUED, OUT_ALREADYQ;
   private int OUT_NOTYET, OUT_RETURNEDNEXT, OUT_EMPTY;
-  private int V_GRANTED_ID, V_QUEUED_ID, V_ALREADYQ_ID;
-  private int V_NOTYET_ID, V_RETURNEDNEXT_ID, V_RETURNEDNEXT_NEXT;
-  private int V_EMPTY_ID;
 
   // ===== HTTP client & config =====
-  private final HttpClient http = HttpClient.newBuilder()
-      .connectTimeout(Duration.ofSeconds(2)).build();
+  private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
 
   /**
    * Base URL for your Flask server. Override at runtime with:
@@ -40,18 +36,18 @@ public class MutexAdapter implements Adapter {
     this._reporter = reporter;
 
     reporter.setTimeUnit(10000);
-	reporter.setTimeout(1000000);
+	  reporter.setTimeout(1000000);
 
     // Inputs
     IN_REQUEST = reporter.addInput("request");
-    reporter.addVarToInput(IN_REQUEST, "id");   // returns void in your API
+    reporter.addVarToInput(IN_REQUEST, "id");
 
     IN_RETURN = reporter.addInput("return");
     reporter.addVarToInput(IN_RETURN,  "id");
 
     // Outputs
     OUT_GRANTED = reporter.addOutput("granted");
-    reporter.addVarToOutput(OUT_GRANTED, "id");   // order matters!
+    reporter.addVarToOutput(OUT_GRANTED, "id");
 
     OUT_QUEUED = reporter.addOutput("queued");
     reporter.addVarToOutput(OUT_QUEUED, "id");
@@ -78,7 +74,7 @@ public class MutexAdapter implements Adapter {
       if (chan == IN_REQUEST) {
         request(params[0]);
       } else if (chan == IN_RETURN) {
-        returning(params[0], /*immediate*/true);
+        returning(params[0], true);
       }
     } catch (Exception e) {
       System.err.println("[MutexAdapter] perform error: " + e);
@@ -86,16 +82,18 @@ public class MutexAdapter implements Adapter {
   }
 
   // ====== HTTP ops ======
-
+  /**
+   * Sends a GET reqest on path: "/api/requesting/" and converts the response to a tron/uppaal channel.
+   * @param id the id of the simulated client sending the request.
+   */
   private void request(int id) {
-    HttpRequest req = HttpRequest.newBuilder(base.resolve("/api/requesting/" + id))
-        .timeout(reqTimeout).GET().build();
+    HttpRequest req = HttpRequest.newBuilder(base.resolve("/api/requesting/" + id)).timeout(reqTimeout).GET().build();
 
     http.sendAsync(req, HttpResponse.BodyHandlers.ofString())
         .thenAccept(resp -> {
           String body = safe(resp.body());
           // Map your Flask texts -> outputs
-          if (body.contains("okay go right straight totally ahead")) {
+          if (body.contains("okay go right straight totally ahead")) { // The Flask server does not use status codes, so need to do this
             _reporter.report(OUT_GRANTED, new int[]{ id });
           } else if (body.startsWith("you have now been queued")) {
             _reporter.report(OUT_QUEUED,  new int[]{ id });
@@ -109,10 +107,14 @@ public class MutexAdapter implements Adapter {
         .exceptionally(ex -> { System.err.println("[HTTP] request failed: " + ex); return null; });
   }
 
+  /**
+   * Sends a GET reqest on path: "/api/returning/" and converts the response to a tron/uppaal channel.
+   * @param id the id of the simulated client sending the request.
+   * @param immediate whether or not the request should send immediately or scheduled.
+   */
   private void returning(int id, boolean immediate) {
     Runnable attempt = () -> {
-      HttpRequest req = HttpRequest.newBuilder(base.resolve("/api/returning/" + id))
-          .timeout(reqTimeout).GET().build();
+      HttpRequest req = HttpRequest.newBuilder(base.resolve("/api/returning/" + id)).timeout(reqTimeout).GET().build();
 
       http.sendAsync(req, HttpResponse.BodyHandlers.ofString())
           .thenAccept(resp -> {
@@ -142,10 +144,15 @@ public class MutexAdapter implements Adapter {
     if (immediate) attempt.run(); else sched.execute(attempt);
   }
 
-  private static int parseNext(String s) {
+  /**
+   * Unpacks the body of a returning response to find the next client to grant.
+   * @param body the body of the response.
+   * @return an int value of the next client to be granted.
+   */
+  private static int parseNext(String body) {
     try {
-      int idx = s.indexOf("next is ");
-      return (idx >= 0) ? Integer.parseInt(s.substring(idx + 8).trim()) : -1;
+      int idx = body.indexOf("next is ");
+      return (idx >= 0) ? Integer.parseInt(body.substring(idx + 8).trim()) : -1;
     } catch (Exception e) { return -1; }
   }
 
