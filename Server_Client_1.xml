@@ -163,8 +163,64 @@ system Server, C0, C1, C2;
 </system>
 	<queries>
 		<query>
-			<formula/>
+			<formula>A[] not deadlock</formula>
 			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-10-07 14:24:27 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (C0.using &amp;&amp; C1.using) || (C0.using &amp;&amp; C2.using) || (C1.using &amp;&amp; C2.using)</formula>
+			<comment/>
+			<result outcome="failure" type="quality" timestamp="2025-10-07 14:55:06 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (C0.using || C1.using || C2.using)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-10-07 14:28:55 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (Server.returned &amp;&amp; Server.requested)</formula>
+			<comment/>
+			<result outcome="failure" type="quality" timestamp="2025-10-07 14:39:41 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ((C0.returning &amp;&amp; Server.returned) || (C1.returning &amp;&amp; Server.returned) || (C2.returning &amp;&amp; Server.returned)) &amp;&amp; ((C0.using) || (C1.using) || (C2.using))</formula>
+			<comment/>
+			<result outcome="failure" type="quality" timestamp="2025-10-07 14:47:35 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (C0.using &amp;&amp; C0.delay&gt;=11) || (C1.using &amp;&amp; C1.delay&gt;=11) || (C2.using &amp;&amp; C2.delay&gt;=11)</formula>
+			<comment/>
+			<result outcome="failure" type="quality" timestamp="2025-10-07 14:54:21 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (C0.using &amp;&amp; C0.delay&lt;=10) || (C1.using &amp;&amp; C1.delay&lt;=10) || (C2.using &amp;&amp; C2.delay&lt;=10)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-10-07 14:55:56 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (Server.requested &amp;&amp; qsize&gt;=1)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-10-07 14:57:25 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (Server.returned &amp;&amp; qsize&gt;=0)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-10-07 14:58:53 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (Server.returned &amp;&amp; qsize&lt;=-1)</formula>
+			<comment/>
+			<result outcome="failure" type="quality" timestamp="2025-10-07 14:59:26 +0200">
+			</result>
 		</query>
 	</queries>
 </nta>
