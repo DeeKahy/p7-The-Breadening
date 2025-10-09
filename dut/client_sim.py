@@ -19,7 +19,10 @@ def make_request(client_id):
 
     try:
         response = requests.get(f"{SERVER_URL}/api/requesting/{client_id}")
-        print(f"Client {client_id} requested: {response.text}")
+        status = response.status_code
+        data = response.json()
+        message = data.get("message")
+        print(f"Client {client_id} requested -> {message} ({status})")
 
         with lock:
             if client_id not in active_clients:
@@ -52,13 +55,29 @@ def schedule_return(client_id, delay):
     while True:
         try:
             response = requests.get(f"{SERVER_URL}/api/returning/{client_id}")
-            print(f"Client {client_id} returned: {response.text}")
+            status = response.status_code
+            data = response.json() if response.text else {}
+            message = data.get("message")
+            #print(f"Client {client_id} returned: {response.text}")
 
             # Loop and keep retrying
-            if "Not your turn yet" in response.text:
-                print("Not your turn yet. Will try again soon")
+            if status == 423: #"Not your turn yet" in response.text:
+                print(f"Locked Client {client_id}: Not your turn yet (423), retrying...")
                 time.sleep(5)
                 continue
+
+            elif status == 200:
+                #data = response.json()
+                next_client = data.get("next")
+                print(f"Successful Client {client_id}: Returned sucesssfully, Next: {next_client}")
+                finalize_client(client_id)
+                return
+            
+            elif status == 204:
+                print(f"Accomplished Client {client_id}: Queue is now empty")
+                finalize_client(client_id)
+                return
+
             else: # Successful return
                 with lock:
                     active_clients.remove(client_id)
@@ -70,6 +89,14 @@ def schedule_return(client_id, delay):
             print(f"Client {client_id} failed to return - server connection lost")
         except Exception as e:
             print(f"Client {client_id} return error: {e}")
+
+def finalize_client(client_id):
+    with lock:
+        if client_id in active_clients:
+            active_clients.remove(client_id)
+        if client_id in waiting_clients:
+            waiting_clients.remove(client_id)
+        completed_clients.append(client_id)
 
 def simulate_random_clients():
     """Main simulation loop that creates random client requests"""
