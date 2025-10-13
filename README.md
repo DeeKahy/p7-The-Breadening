@@ -54,7 +54,8 @@ In a third terminal, run:
 
 ```bash
 cd "your tron directory"
-tron -u 4000,4000 -P 10,200 -F 300 -I SocketAdapter -v 9 centralized_mutex.xml -- localhost 9999
+mutex_folder="path to your centralized_mutex.xml"
+tron -u 4000,4000 -P 10,200 -F 300 -I SocketAdapter -v 9 $mutex_folder -- localhost 9999
 ```
 
 | Flag                    | Description                               |
