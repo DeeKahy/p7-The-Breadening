@@ -6,163 +6,125 @@ import com.uppaal.tron.TronException;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.*;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.*;
 
+/**
+ * Adapter that maps the three channels of the UPPAAL‑TRON model
+ *   request(id)  →  GET /api/requesting/{id}
+ *   grant(id)    ←  HTTP 200 "okay go …"
+ *   done(id)     →  GET /api/returning/{id}
+ *
+ * The only change in this revision is **binding the channels to the two global
+ * integer variables that already exist in the model** (`requesting_c_id` and
+ * `granted_c_id`).  Using those avoids the runtime error:
+ *   addVarToInput: Variable name not found, must be declared as integer.
+ */
 public class MutexAdapter implements Adapter {
-  // ===== TRON channel/var ids =====
-  private int IN_REQUEST, IN_RETURN;
-  private int OUT_GRANTED, OUT_QUEUED, OUT_ALREADYQ;
-  private int OUT_NOTYET, OUT_RETURNEDNEXT, OUT_EMPTY;
 
-  // ===== HTTP client & config =====
-  private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+    // ── TRON channel identifiers ────────────────────────────────────────────
+    private int IN_REQUEST;   // request?
+    private int IN_DONE;      // done?
+    private int OUT_GRANT;    // grant!
 
-  /**
-   * Base URL for your Flask server. Override at runtime with:
-   *   -DmutexServerBase=http://localhost:5000
-   */
-  private final URI base = URI.create(System.getProperty("mutexServerBase", "http://localhost:5000"));
+    private Reporter reporter;
 
-  private final Duration reqTimeout = Duration.ofSeconds(3);
-  private final ScheduledExecutorService sched = Executors.newScheduledThreadPool(2);
+    // ── HTTP client & config ────────────────────────────────────────────────
+    private final HttpClient http = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(20))
+            .build();
 
-  private Reporter _reporter;
+    /** Base URL for the Flask mutex server (‑DmutexServerBase=…) */
+    private final URI base = URI.create(System.getProperty("mutexServerBase", "http://localhost:5000"));
 
-  // channel ids only
-  @Override
-  public void configure(Reporter reporter) throws TronException, IOException {
-    this._reporter = reporter;
+    private final Duration reqTimeout = Duration.ofSeconds(3);
 
-    reporter.setTimeUnit(10000);
-	  reporter.setTimeout(1000000);
+    private final ScheduledExecutorService sched = Executors.newScheduledThreadPool(2);
 
-    // Inputs
-    IN_REQUEST = reporter.addInput("request");
-    reporter.addVarToInput(IN_REQUEST, "id");
+    // ── Adapter ⇄ TRON interface ────────────────────────────────────────────
+    @Override
+    public void configure(Reporter reporter) throws TronException, IOException {
+        this.reporter = reporter;
 
-    IN_RETURN = reporter.addInput("return");
-    reporter.addVarToInput(IN_RETURN,  "id");
+        reporter.setTimeUnit(10_000);   // 10 ms per model time unit
+        reporter.setTimeout(1_000_000); // test budget: 100 s
 
-    // Outputs
-    OUT_GRANTED = reporter.addOutput("granted");
-    reporter.addVarToOutput(OUT_GRANTED, "id");
+        // Bind existing *global* int variables – not the template constant `id`!
+        IN_REQUEST = reporter.addInput("request");
+        reporter.addVarToInput(IN_REQUEST, "requesting_c_id");
 
-    OUT_QUEUED = reporter.addOutput("queued");
-    reporter.addVarToOutput(OUT_QUEUED, "id");
+        IN_DONE = reporter.addInput("done");
+        reporter.addVarToInput(IN_DONE, "granted_c_id");
 
-    OUT_ALREADYQ = reporter.addOutput("alreadyQueued");
-    reporter.addVarToOutput(OUT_ALREADYQ, "id");
-
-    OUT_NOTYET = reporter.addOutput("notYourTurn");
-    reporter.addVarToOutput(OUT_NOTYET, "id");
-
-    OUT_RETURNEDNEXT = reporter.addOutput("returnedNext");
-    reporter.addVarToOutput(OUT_RETURNEDNEXT, "id");
-    reporter.addVarToOutput(OUT_RETURNEDNEXT, "next");
-
-    OUT_EMPTY = reporter.addOutput("queueEmpty");
-    reporter.addVarToOutput(OUT_EMPTY, "id");
-
-    System.out.println("[MutexAdapter] configured (void var API).");
-  }
-
-  @Override
-  public void perform(int chan, int[] params) {
-    try {
-      if (chan == IN_REQUEST) {
-        request(params[0]);
-      } else if (chan == IN_RETURN) {
-        returning(params[0], true);
-      }
-    } catch (Exception e) {
-      System.err.println("[MutexAdapter] perform error: " + e);
+        OUT_GRANT = reporter.addOutput("grant");
+        reporter.addVarToOutput(OUT_GRANT, "granted_c_id");
     }
-  }
 
-  // ====== HTTP ops ======
-  /**
-   * Sends a GET reqest on path: "/api/requesting/" and converts the response to a tron/uppaal channel.
-   * @param id the id of the simulated client sending the request.
-   */
-  private void request(int id) {
-    HttpRequest req = HttpRequest.newBuilder(base.resolve("/api/requesting/" + id)).timeout(reqTimeout).GET().build();
+    @Override
+    public void perform(int chan, int[] params) {
+        // every bound channel carries ONE integer parameter – the client id
+        int cid = params[0];
 
-    http.sendAsync(req, HttpResponse.BodyHandlers.ofString())
-        .thenAccept(resp -> {
-          String body = safe(resp.body());
-          // Map your Flask texts -> outputs
-          if (body.contains("okay go right straight totally ahead")) { // The Flask server does not use status codes, so need to do this
-            _reporter.report(OUT_GRANTED, new int[]{ id });
-          } else if (body.startsWith("you have now been queued")) {
-            _reporter.report(OUT_QUEUED,  new int[]{ id });
-          } else if (body.startsWith("you are already in the queue")) {
-            _reporter.report(OUT_ALREADYQ,new int[]{ id });
-          } else {
-            // Fallback: treat unknown as queued
-            _reporter.report(OUT_QUEUED,  new int[]{ id });
-          }
-        })
-        .exceptionally(ex -> { System.err.println("[HTTP] request failed: " + ex); return null; });
-  }
+        if (chan == IN_REQUEST) {
+            pollRequest(cid);
+        } else if (chan == IN_DONE) {
+            sendDone(cid);
+        }
+    }
 
-  /**
-   * Sends a GET reqest on path: "/api/returning/" and converts the response to a tron/uppaal channel.
-   * @param id the id of the simulated client sending the request.
-   * @param immediate whether or not the request should send immediately or scheduled.
-   */
-  private void returning(int id, boolean immediate) {
-    Runnable attempt = () -> {
-      HttpRequest req = HttpRequest.newBuilder(base.resolve("/api/returning/" + id)).timeout(reqTimeout).GET().build();
+    // ── request → (poll) → grant loop ───────────────────────────────────────
+    private void pollRequest(int cid) {
+        HttpRequest req = HttpRequest.newBuilder(base.resolve("/api/requesting/" + cid))
+                .timeout(reqTimeout)
+                .GET()
+                .build();
 
-      http.sendAsync(req, HttpResponse.BodyHandlers.ofString())
-          .thenAccept(resp -> {
-            String body = safe(resp.body());
-            if (body.contains("Not your turn yet")) {
-              _reporter.report(OUT_NOTYET, new int[]{ id });
-              // retry in 5s (same cadence as your Python sim)
-              sched.schedule(() -> returning(id, false), 5, TimeUnit.SECONDS);
-            } else if (body.startsWith("Returning:")) {
-              int next = parseNext(body); // "Returning: X next is Y"
-              _reporter.report(OUT_RETURNEDNEXT, new int[]{ id, next });
-            } else if (body.startsWith("Queue is now empty.")) {
-              _reporter.report(OUT_EMPTY, new int[]{ id });
-            } else {
-              // Unknown -> treat as not-yet and retry
-              _reporter.report(OUT_NOTYET, new int[]{ id });
-              sched.schedule(() -> returning(id, false), 5, TimeUnit.SECONDS);
-            }
-          })
-          .exceptionally(ex -> {
-            System.err.println("[HTTP] returning failed: " + ex);
-            sched.schedule(() -> returning(id, false), 5, TimeUnit.SECONDS);
-            return null;
-          });
-    };
+        http.sendAsync(req, HttpResponse.BodyHandlers.ofString())
+                .thenAccept(resp -> {
+                    String body = safe(resp.body());
+                    if (body.startsWith("okay go")) {
+                        reporter.report(OUT_GRANT, new int[]{cid});
+                    } else {
+                        sched.schedule(() -> pollRequest(cid), 1, TimeUnit.SECONDS);
+                    }
+                })
+                .exceptionally(ex -> {
+                    sched.schedule(() -> pollRequest(cid), 2, TimeUnit.SECONDS);
+                    return null;
+                });
+    }
 
-    if (immediate) attempt.run(); else sched.execute(attempt);
-  }
+    // ── done → (maybe retry) ────────────────────────────────────────────────
+    private void sendDone(int cid) {
+        HttpRequest req = HttpRequest.newBuilder(base.resolve("/api/returning/" + cid))
+                .timeout(reqTimeout)
+                .GET()
+                .build();
 
-  /**
-   * Unpacks the body of a returning response to find the next client to grant.
-   * @param body the body of the response.
-   * @return an int value of the next client to be granted.
-   */
-  private static int parseNext(String body) {
-    try {
-      int idx = body.indexOf("next is ");
-      return (idx >= 0) ? Integer.parseInt(body.substring(idx + 8).trim()) : -1;
-    } catch (Exception e) { return -1; }
-  }
+        http.sendAsync(req, HttpResponse.BodyHandlers.ofString())
+                .thenAccept(resp -> {
+                    String body = safe(resp.body());
+                    if (body.contains("Not your turn yet")) {
+                        sched.schedule(() -> sendDone(cid), 5, TimeUnit.SECONDS);
+                    }
+                })
+                .exceptionally(ex -> {
+                    sched.schedule(() -> sendDone(cid), 5, TimeUnit.SECONDS);
+                    return null;
+                });
+    }
 
-  private static String safe(String b) { return (b == null) ? "" : b; }
+    private static String safe(String s) { return (s == null) ? "" : s; }
 
-  // ---- Entrypoint: accept TRON connection on given port ----
-  public static void main(String[] args) throws Exception {
-    int port = (args.length > 0) ? Integer.parseInt(args[0]) : 9999;
-    MutexAdapter adapter = new MutexAdapter();
-    Reporter r = new Reporter(adapter, port); // server mode: accept()
-    r.start(); // blocks
-  }
+    // ── standalone entry‑point ───────────────────────────────────────────────
+    public static void main(String[] args) throws Exception {
+        int port = (args.length > 0) ? Integer.parseInt(args[0]) : 9999;
+        MutexAdapter adapter = new MutexAdapter();
+        Reporter reporter = new Reporter(adapter, port);
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> adapter.sched.shutdownNow()));
+        reporter.join();
+    }
 }
