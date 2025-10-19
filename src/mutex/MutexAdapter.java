@@ -49,7 +49,7 @@ public class MutexAdapter implements Adapter {
     public void configure(Reporter reporter) throws TronException, IOException {
         this.reporter = reporter;
 
-        reporter.setTimeUnit(10_000);   // 10 ms per model time unit
+        reporter.setTimeUnit(50_000);   // 50 ms per model time unit
         reporter.setTimeout(1_000_000); // test budget: 100 s
 
         // Bind existing *global* int variables – not the template constant `id`!
