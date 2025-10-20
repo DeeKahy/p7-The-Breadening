@@ -87,8 +87,6 @@ public class MutexAdapter implements Adapter {
                     String body = safe(resp.body());
                     if (body.startsWith("okay go")) {
                         reporter.report(OUT_GRANT, new int[]{cid});
-                    } else {
-                        sched.schedule(() -> pollRequest(cid), 1, TimeUnit.SECONDS);
                     }
                 })
                 .exceptionally(ex -> {
@@ -107,8 +105,11 @@ public class MutexAdapter implements Adapter {
         http.sendAsync(req, HttpResponse.BodyHandlers.ofString())
                 .thenAccept(resp -> {
                     String body = safe(resp.body());
-                    if (body.contains("Not your turn yet")) {
-                        sched.schedule(() -> sendDone(cid), 5, TimeUnit.SECONDS);
+                    if (body.contains("Returning")) {
+                        String needle = "next is";
+                        String tail = body.substring(body.toLowerCase().indexOf(needle) + needle.length()).trim();
+                        int next_id = Integer.parseInt(tail);
+                        reporter.report(OUT_GRANT, new int[]{next_id});
                     }
                 })
                 .exceptionally(ex -> {
