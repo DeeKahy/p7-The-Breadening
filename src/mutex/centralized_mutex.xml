@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>chan request, grant, done;
+int requesting_c_id = -1;
+int granted_c_id    = -1;</declaration>
+	<template>
+		<name>Client</name>
+		<parameter>const int id</parameter>
+		<declaration>clock delay;</declaration>
+		<location id="id0" x="187" y="127">
+			<name x="204" y="118">begin</name>
+		</location>
+		<location id="id1" x="51" y="229">
+			<name x="17" y="238">using</name>
+			<label kind="invariant" x="-68" y="221">delay &lt;= 10</label>
+		</location>
+		<init ref="id0"/>
+		<transition id="id2">
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="synchronisation" x="51" y="102">done!</label>
+			<nail x="51" y="127"/>
+		</transition>
+		<transition id="id3">
+			<source ref="id0"/>
+			<target ref="id0"/>
+			<label kind="synchronisation" x="153" y="33">request!</label>
+			<label kind="assignment" x="153" y="50">requesting_c_id = id</label>
+			<nail x="153" y="67"/>
+			<nail x="229" y="67"/>
+		</transition>
+		<transition id="id4">
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="guard" x="76" y="272">granted_c_id == id</label>
+			<label kind="synchronisation" x="76" y="238">grant?</label>
+			<label kind="assignment" x="76" y="255">delay = 0</label>
+			<nail x="187" y="229"/>
+		</transition>
+	</template>
+	<template>
+		<name x="5" y="5">Server</name>
+		<parameter>const int N</parameter>
+		<declaration>int  queue[N];     // holds waiting client IDs
+int  head  =  0;   // index of the oldest element
+int  tail  = -1;   // index of the newest element
+int  qsize =  0;   // current number of stored IDs
+
+bool contains(int c_id) {
+    int i;
+    for (i = 0; i &lt; qsize; i++) {
+        int idx = (head + i) % N;
+        if(queue[idx] == c_id) return true;
+    } 
+    return false;
+  }
+
+void enqueue(int c_id) {
+    tail = (tail + 1) % N;
+    queue[tail] = c_id;
+    qsize++;
+}
+
+void dequeue() {
+    head = (head + 1) % N;
+    qsize--;
+}
+
+int front()
+  {
+    return queue[head];
+}</declaration>
+		<location id="id5" x="-289" y="119">
+			<name x="-340" y="119">begin</name>
+		</location>
+		<location id="id6" x="8" y="119">
+			<name x="25" y="93">requested</name>
+		</location>
+		<location id="id7" x="-289" y="-59">
+			<name x="-299" y="-93">returned</name>
+		</location>
+		<location id="id8" x="-144" y="221">
+			<urgent/>
+		</location>
+		<location id="id9" x="-153" y="119">
+			<urgent/>
+		</location>
+		<init ref="id5"/>
+		<transition id="id10">
+			<source ref="id5"/>
+			<target ref="id9"/>
+			<label kind="synchronisation" x="-255" y="68">request?</label>
+		</transition>
+		<transition id="id11">
+			<source ref="id9"/>
+			<target ref="id5"/>
+			<label kind="guard" x="-221" y="93">contains(requesting_c_id)</label>
+		</transition>
+		<transition id="id12">
+			<source ref="id9"/>
+			<target ref="id6"/>
+			<label kind="guard" x="-255" y="93">not contains(requesting_c_id)</label>
+			<label kind="assignment" x="-254" y="80">enqueue(requesting_c_id)</label>
+		</transition>
+		<transition id="id13">
+			<source ref="id7"/>
+			<target ref="id5"/>
+			<label kind="guard" x="-527" y="34">qsize &gt;= 1</label>
+			<label kind="synchronisation" x="-527" y="0">grant!</label>
+			<label kind="assignment" x="-527" y="17">granted_c_id = front()</label>
+			<nail x="-331" y="25"/>
+		</transition>
+		<transition id="id14">
+			<source ref="id8"/>
+			<target ref="id5"/>
+			<label kind="synchronisation" x="-280" y="221">grant!</label>
+			<nail x="-289" y="221"/>
+		</transition>
+		<transition id="id15">
+			<source ref="id6"/>
+			<target ref="id8"/>
+			<label kind="guard" x="-93" y="238">qsize &lt;= 1</label>
+			<label kind="assignment" x="-93" y="221">granted_c_id = front()</label>
+			<nail x="8" y="221"/>
+		</transition>
+		<transition id="id16">
+			<source ref="id7"/>
+			<target ref="id5"/>
+			<label kind="guard" x="-629" y="17">qsize &lt;=0</label>
+			<nail x="-535" y="-59"/>
+			<nail x="-535" y="119"/>
+		</transition>
+		<transition id="id17">
+			<source ref="id5"/>
+			<target ref="id7"/>
+			<label kind="synchronisation" x="-280" y="8">done?</label>
+			<label kind="assignment" x="-280" y="25">dequeue()</label>
+		</transition>
+		<transition id="id18">
+			<source ref="id6"/>
+			<target ref="id5"/>
+			<label kind="guard" x="-195" y="153">qsize &gt;= 2</label>
+			<nail x="-153" y="153"/>
+		</transition>
+	</template>
+	<system>// Place template instantiations here.
+const int N = 3;
+// List one or more processes to be composed into a system.
+C0 = Client(0);
+C1 = Client(1);
+C2 = Client(2);
+
+S  = Server(N);
+
+system S, C0, C1, C2;
+</system>
+	<queries>
+		<query>
+			<formula>A[] not deadlock</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-10-19 21:49:48 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E[] S.qsize &gt; 0</formula>
+			<comment/>
+			<result outcome="failure" type="quality" timestamp="2025-10-19 22:18:07 +0200">
+			</result>
+		</query>
+	</queries>
+</nta>
