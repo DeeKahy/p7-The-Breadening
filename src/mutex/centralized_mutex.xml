@@ -52,7 +52,7 @@ bool contains(int c_id) {
     for (i = 0; i &lt; qsize; i++) {
         int idx = (head + i) % N;
         if(queue[idx] == c_id) return true;
-    } 
+    }
     return false;
   }
 
