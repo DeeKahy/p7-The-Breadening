@@ -8,140 +8,172 @@ int granted_c_id    = -1;</declaration>
 		<name>Client</name>
 		<parameter>const int id</parameter>
 		<declaration>clock delay;</declaration>
-		<location id="id0" x="187" y="127">
-			<name x="204" y="118">begin</name>
+		<location id="id0" x="-195" y="-51">
+			<name x="-178" y="-60">begin</name>
+			<label kind="invariant" x="-178" y="-42">delay &lt;= 5</label>
 		</location>
-		<location id="id1" x="51" y="229">
-			<name x="17" y="238">using</name>
-			<label kind="invariant" x="-68" y="221">delay &lt;= 10</label>
+		<location id="id1" x="-331" y="51">
+			<name x="-365" y="60">using</name>
+			<label kind="invariant" x="-450" y="43">delay &lt;= 10</label>
 		</location>
 		<init ref="id0"/>
 		<transition id="id2">
 			<source ref="id1"/>
 			<target ref="id0"/>
-			<label kind="synchronisation" x="51" y="102">done!</label>
-			<nail x="51" y="127"/>
+			<label kind="guard" x="-331" y="-93">delay &gt;= 2</label>
+			<label kind="synchronisation" x="-331" y="-110">done!</label>
+			<label kind="assignment" x="-331" y="-76">delay = 0</label>
+			<nail x="-331" y="-51"/>
 		</transition>
 		<transition id="id3">
 			<source ref="id0"/>
 			<target ref="id0"/>
-			<label kind="synchronisation" x="153" y="33">request!</label>
-			<label kind="assignment" x="153" y="50">requesting_c_id = id</label>
-			<nail x="153" y="67"/>
-			<nail x="229" y="67"/>
+			<label kind="synchronisation" x="-229" y="-187">request!</label>
+			<label kind="assignment" x="-229" y="-153">requesting_c_id = id,
+delay = 0</label>
+			<nail x="-229" y="-111"/>
+			<nail x="-153" y="-111"/>
 		</transition>
 		<transition id="id4">
 			<source ref="id0"/>
 			<target ref="id1"/>
-			<label kind="guard" x="76" y="272">granted_c_id == id</label>
-			<label kind="synchronisation" x="76" y="238">grant?</label>
-			<label kind="assignment" x="76" y="255">delay = 0</label>
-			<nail x="187" y="229"/>
+			<label kind="guard" x="-306" y="94">granted_c_id == id</label>
+			<label kind="synchronisation" x="-306" y="60">grant?</label>
+			<label kind="assignment" x="-306" y="77">delay = 0</label>
+			<nail x="-195" y="51"/>
 		</transition>
 	</template>
 	<template>
 		<name x="5" y="5">Server</name>
 		<parameter>const int N</parameter>
-		<declaration>int  queue[N];     // holds waiting client IDs
-int  head  =  0;   // index of the oldest element
-int  tail  = -1;   // index of the newest element
-int  qsize =  0;   // current number of stored IDs
+		<declaration>const int MAX1 = 1;  // used to check that qsize &lt;= 1
+const int MIN2 = 2;  // used to check that qsize &gt;= 2
+const int MAX0 = 3;  // used to check that qsize &lt;= 0
+const int MIN1 = 4;  // used to check that qsize &gt;= 1
+
+typedef struct{
+    int queue[N];
+    int head;
+    int tail;
+    int qsize;
+} Server;
+
+Server server = {{0, 0, 0}, 0, -1, 0};     // holds waiting client IDs
 
 bool contains(int c_id) {
     int i;
-    for (i = 0; i &lt; qsize; i++) {
-        int idx = (head + i) % N;
-        if(queue[idx] == c_id) return true;
+    for (i = 0; i &lt; server.qsize; i++) {
+        int idx = (server.head + i) % N;
+        if(server.queue[idx] == c_id)
+            return true;
     } 
     return false;
   }
 
 void enqueue(int c_id) {
-    tail = (tail + 1) % N;
-    queue[tail] = c_id;
-    qsize++;
+    server.tail = (server.tail + 1) % N;
+    server.queue[server.tail] = c_id;
+    server.qsize++;
 }
 
 void dequeue() {
-    head = (head + 1) % N;
-    qsize--;
+    server.head = (server.head + 1) % N;
+    server.qsize--;
 }
 
-int front()
+int grant_client()
   {
-    return queue[head];
+    return granted_c_id = server.queue[server.head];
+}
+
+bool isOccupied(int mode) {
+    if (mode == MAX1)
+        return server.qsize &lt;= 1;    // qsize not larger than 1
+    else if (mode == MIN2)
+        return server.qsize &gt;= 2;    // qsize not less than 2
+    else if (mode == MAX0)
+        return server.qsize &lt;= 0;    // qsize not larger than 0
+    else if (mode == MIN1)
+        return server.qsize &gt;= 1;    // qsize not less than 1
+    else
+        return false;         // safety fallback
 }</declaration>
-		<location id="id5" x="-289" y="119">
-			<name x="-340" y="119">begin</name>
+		<location id="id5" x="-246" y="119">
+			<name x="-297" y="119">begin</name>
 		</location>
-		<location id="id6" x="8" y="119">
-			<name x="25" y="93">requested</name>
+		<location id="id6" x="51" y="119">
+			<name x="68" y="93">requested</name>
+			<committed/>
 		</location>
-		<location id="id7" x="-289" y="-59">
-			<name x="-299" y="-93">returned</name>
+		<location id="id7" x="-246" y="-59">
+			<name x="-256" y="-93">returned</name>
 		</location>
-		<location id="id8" x="-144" y="221">
-			<urgent/>
+		<location id="id8" x="-101" y="221">
 		</location>
-		<location id="id9" x="-153" y="119">
-			<urgent/>
+		<location id="id9" x="-110" y="119">
+		</location>
+		<location id="id10" x="-306" y="25">
 		</location>
 		<init ref="id5"/>
-		<transition id="id10">
-			<source ref="id5"/>
-			<target ref="id9"/>
-			<label kind="synchronisation" x="-255" y="68">request?</label>
-		</transition>
 		<transition id="id11">
-			<source ref="id9"/>
+			<source ref="id10"/>
 			<target ref="id5"/>
-			<label kind="guard" x="-221" y="93">contains(requesting_c_id)</label>
+			<label kind="synchronisation" x="-331" y="68">grant!</label>
 		</transition>
 		<transition id="id12">
-			<source ref="id9"/>
-			<target ref="id6"/>
-			<label kind="guard" x="-255" y="93">not contains(requesting_c_id)</label>
-			<label kind="assignment" x="-254" y="80">enqueue(requesting_c_id)</label>
+			<source ref="id7"/>
+			<target ref="id10"/>
+			<label kind="guard" x="-408" y="-34">isOccupied(MIN1)</label>
+			<label kind="assignment" x="-408" y="-17">grant_client()</label>
 		</transition>
 		<transition id="id13">
-			<source ref="id7"/>
-			<target ref="id5"/>
-			<label kind="guard" x="-527" y="34">qsize &gt;= 1</label>
-			<label kind="synchronisation" x="-527" y="0">grant!</label>
-			<label kind="assignment" x="-527" y="17">granted_c_id = front()</label>
-			<nail x="-331" y="25"/>
+			<source ref="id5"/>
+			<target ref="id9"/>
+			<label kind="synchronisation" x="-237" y="76">request?</label>
 		</transition>
 		<transition id="id14">
-			<source ref="id8"/>
+			<source ref="id9"/>
 			<target ref="id5"/>
-			<label kind="synchronisation" x="-280" y="221">grant!</label>
-			<nail x="-289" y="221"/>
+			<label kind="guard" x="-237" y="93">contains(requesting_c_id)</label>
 		</transition>
 		<transition id="id15">
-			<source ref="id6"/>
-			<target ref="id8"/>
-			<label kind="guard" x="-93" y="238">qsize &lt;= 1</label>
-			<label kind="assignment" x="-93" y="221">granted_c_id = front()</label>
-			<nail x="8" y="221"/>
+			<source ref="id9"/>
+			<target ref="id6"/>
+			<label kind="guard" x="-93" y="34">not contains(requesting_c_id)</label>
+			<label kind="assignment" x="-93" y="51">enqueue(requesting_c_id),
+requesting_c_id = -1</label>
 		</transition>
 		<transition id="id16">
-			<source ref="id7"/>
+			<source ref="id8"/>
 			<target ref="id5"/>
-			<label kind="guard" x="-629" y="17">qsize &lt;=0</label>
-			<nail x="-535" y="-59"/>
-			<nail x="-535" y="119"/>
+			<label kind="synchronisation" x="-237" y="221">grant!</label>
+			<nail x="-246" y="221"/>
 		</transition>
 		<transition id="id17">
-			<source ref="id5"/>
-			<target ref="id7"/>
-			<label kind="synchronisation" x="-280" y="8">done?</label>
-			<label kind="assignment" x="-280" y="25">dequeue()</label>
+			<source ref="id6"/>
+			<target ref="id8"/>
+			<label kind="guard" x="-50" y="238">isOccupied(MAX1)</label>
+			<label kind="assignment" x="-50" y="221">grant_client()</label>
+			<nail x="51" y="221"/>
 		</transition>
 		<transition id="id18">
+			<source ref="id7"/>
+			<target ref="id5"/>
+			<label kind="guard" x="-620" y="17">isOccupied(MAX0)</label>
+			<nail x="-492" y="-59"/>
+			<nail x="-492" y="119"/>
+		</transition>
+		<transition id="id19">
+			<source ref="id5"/>
+			<target ref="id7"/>
+			<label kind="synchronisation" x="-237" y="8">done?</label>
+			<label kind="assignment" x="-237" y="25">dequeue()</label>
+		</transition>
+		<transition id="id20">
 			<source ref="id6"/>
 			<target ref="id5"/>
-			<label kind="guard" x="-195" y="153">qsize &gt;= 2</label>
-			<nail x="-153" y="153"/>
+			<label kind="guard" x="-152" y="153">isOccupied(MIN2)</label>
+			<nail x="-110" y="153"/>
 		</transition>
 	</template>
 	<system>// Place template instantiations here.
@@ -159,13 +191,73 @@ system S, C0, C1, C2;
 		<query>
 			<formula>A[] not deadlock</formula>
 			<comment/>
-			<result outcome="success" type="quality" timestamp="2025-10-19 21:49:48 +0200">
+			<result outcome="success" type="quality" timestamp="2025-10-23 12:40:45 +0200">
 			</result>
 		</query>
 		<query>
-			<formula>E[] S.qsize &gt; 0</formula>
+			<formula>E&lt;&gt; (C0.using &amp;&amp; C1.using) || (C0.using &amp;&amp; C2.using) || (C1.using &amp;&amp; C2.using)</formula>
 			<comment/>
-			<result outcome="failure" type="quality" timestamp="2025-10-19 22:18:07 +0200">
+			<result outcome="failure" type="quality" timestamp="2025-10-23 13:09:46 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (C0.using || C1.using || C2.using)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-10-23 13:10:04 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; ((C0.begin &amp;&amp; S.returned) || (C1.begin &amp;&amp; S.returned) || (C2.begin &amp;&amp; S.returned)) &amp;&amp; ((C0.using) || (C1.using) || (C2.using))</formula>
+			<comment/>
+			<result outcome="failure" type="quality" timestamp="2025-10-23 13:10:21 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (C0.using &amp;&amp; C0.delay&gt;=11) || (C1.using &amp;&amp; C1.delay&gt;=11) || (C2.using &amp;&amp; C2.delay&gt;=11)</formula>
+			<comment/>
+			<result outcome="failure" type="quality" timestamp="2025-10-23 13:10:36 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (C0.using &amp;&amp; C0.delay&lt;=10) || (C1.using &amp;&amp; C1.delay&lt;=10) || (C2.using &amp;&amp; C2.delay&lt;=10)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-10-23 13:10:45 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (S.requested &amp;&amp; S.server.qsize&gt;=1)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-10-23 13:10:57 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (S.requested &amp;&amp; S.server.qsize&lt;=0)</formula>
+			<comment/>
+			<result outcome="failure" type="quality" timestamp="2025-10-23 13:11:05 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (S.returned &amp;&amp; S.server.qsize&gt;=0)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-10-23 13:11:13 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (S.returned &amp;&amp; S.server.qsize&lt;=-1)</formula>
+			<comment/>
+			<result outcome="failure" type="quality" timestamp="2025-10-23 13:11:28 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; S.server.qsize == 3</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-10-23 13:12:09 +0200">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; S.server.qsize == 4</formula>
+			<comment/>
+			<result outcome="failure" type="quality" timestamp="2025-10-23 13:11:54 +0200">
 			</result>
 		</query>
 	</queries>
