@@ -49,14 +49,14 @@ java -DmutexServerBase="http://localhost:5000" -cp build mutex.MutexAdapter 9999
 * `9999` is the port the adapter will expose for TRON.
 
 ## 4. Run TRON
+Remember to add tron to your path or use the full path of tron such as this `../uppaal-tron-1.5-linux/tron`
 
-In a third terminal, run:
+In a third terminal, run this in the projet root:
 
 ```bash
-cd "your tron directory"
-mutex_folder="path to your centralized_mutex.xml"
-tron -u 4000,4000 -P 10,200 -F 300 -I SocketAdapter -v 9 $mutex_folder -- localhost 9999
+tron -u 4000,4000 -P 10,200 -F 300 -I SocketAdapter -v 9 src/mutex/centralized_mutex.xml -- localhost 9999
 ```
+
 
 | Flag                    | Description                               |
 | ----------------------- | ----------------------------------------- |
