@@ -27,6 +27,16 @@ echo -e "${GREEN}=== Starting Mutex Testing Environment ===${NC}"
 echo "Logs will be saved in ./logs/"
 echo ""
 
+# 0. Compile the adapter
+echo -e "${BLUE}[0/3] Compiling MutexAdapter...${NC}"
+javac -cp ".:src" -d build src/com/uppaal/tron/Adapter.java src/com/uppaal/tron/Reporter.java src/mutex/MutexAdapter.java
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Failed to compile MutexAdapter!${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Compilation successful${NC}"
+echo ""
+
 # Function to cleanup on exit
 cleanup() {
     echo -e "\n${YELLOW}Shutting down all processes...${NC}"

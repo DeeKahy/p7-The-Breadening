@@ -17,10 +17,13 @@ import java.util.concurrent.*;
  *   grant(id)    ←  HTTP 200 "okay go …"
  *   done(id)     →  GET /api/returning/{id}
  *
- * The only change in this revision is **binding the channels to the two global
- * integer variables that already exist in the model** (`requesting_c_id` and
- * `granted_c_id`).  Using those avoids the runtime error:
- *   addVarToInput: Variable name not found, must be declared as integer.
+ * Updated to handle all Flask server status codes:
+ *   - 200: proceed / returned
+ *   - 202: queued
+ *   - 204: queue_empty
+ *   - 409: already_in_queue / not_in_queue
+ *   - 423: not_your_turn
+ *   - 500: queue_empty_error
  */
 public class MutexAdapter implements Adapter {
 
@@ -89,12 +92,40 @@ public class MutexAdapter implements Adapter {
         http
             .sendAsync(req, HttpResponse.BodyHandlers.ofString())
             .thenAccept(resp -> {
-                String body = safe(resp.body());
-                if (body.startsWith("okay go")) {
-                    reporter.report(OUT_GRANT, new int[] { cid });
+                int status = resp.statusCode();
+
+                switch (status) {
+                    case 200: // proceed - grant access
+                        reporter.report(OUT_GRANT, new int[] { cid });
+                        break;
+                    case 202: // queued - keep polling
+                    case 409: // already_in_queue - keep polling
+                        sched.schedule(
+                            () -> pollRequest(cid),
+                            50,
+                            TimeUnit.MILLISECONDS
+                        );
+                        break;
+                    default:
+                        System.err.println(
+                            "Unexpected status " +
+                                status +
+                                " for request(" +
+                                cid +
+                                "): " +
+                                resp.body()
+                        );
+                        sched.schedule(
+                            () -> pollRequest(cid),
+                            2,
+                            TimeUnit.SECONDS
+                        );
                 }
             })
             .exceptionally(ex -> {
+                System.err.println(
+                    "Request failed for client " + cid + ": " + ex.getMessage()
+                );
                 sched.schedule(() -> pollRequest(cid), 2, TimeUnit.SECONDS);
                 return null;
             });
@@ -112,19 +143,84 @@ public class MutexAdapter implements Adapter {
         http
             .sendAsync(req, HttpResponse.BodyHandlers.ofString())
             .thenAccept(resp -> {
+                int status = resp.statusCode();
                 String body = safe(resp.body());
-                if (body.contains("Returning")) {
-                    String needle = "next is";
-                    String tail = body
-                        .substring(
-                            body.toLowerCase().indexOf(needle) + needle.length()
-                        )
-                        .trim();
-                    int next_id = Integer.parseInt(tail);
-                    reporter.report(OUT_GRANT, new int[] { next_id });
+
+                switch (status) {
+                    case 200: // returned - grant next client if present
+                        try {
+                            // Parse JSON response to get "next" field
+                            if (body.contains("\"next\"")) {
+                                String nextStr = body
+                                    .split("\"next\"")[1].split(":")[1].split(
+                                        "[,}]"
+                                    )[0].trim()
+                                    .replace("\"", "");
+                                int nextId = Integer.parseInt(nextStr);
+                                reporter.report(
+                                    OUT_GRANT,
+                                    new int[] { nextId }
+                                );
+                            }
+                        } catch (Exception e) {
+                            System.err.println(
+                                "Failed to parse next client from: " + body
+                            );
+                        }
+                        break;
+                    case 204: // queue_empty - nothing to do
+                        // Successfully returned, queue is now empty
+                        break;
+                    case 409: // not_in_queue - unexpected, retry
+                        System.err.println(
+                            "Client " + cid + " not in queue on return"
+                        );
+                        sched.schedule(
+                            () -> sendDone(cid),
+                            3,
+                            TimeUnit.SECONDS
+                        );
+                        break;
+                    case 423: // not_your_turn - unexpected, retry
+                        System.err.println(
+                            "Not client " + cid + "'s turn to return"
+                        );
+                        sched.schedule(
+                            () -> sendDone(cid),
+                            3,
+                            TimeUnit.SECONDS
+                        );
+                        break;
+                    case 500: // queue_empty_error - serious issue, retry
+                        System.err.println(
+                            "Server error (queue empty) for client " + cid
+                        );
+                        sched.schedule(
+                            () -> sendDone(cid),
+                            5,
+                            TimeUnit.SECONDS
+                        );
+                        break;
+                    default:
+                        System.err.println(
+                            "Unexpected status " +
+                                status +
+                                " for done(" +
+                                cid +
+                                "): " +
+                                body
+                        );
+                        sched.schedule(
+                            () -> sendDone(cid),
+                            5,
+                            TimeUnit.SECONDS
+                        );
                 }
             })
             .exceptionally(ex -> {
+                System.err.println(
+                    "Done failed for client " + cid + ": " + ex.getMessage()
+                );
                 sched.schedule(() -> sendDone(cid), 5, TimeUnit.SECONDS);
                 return null;
             });
