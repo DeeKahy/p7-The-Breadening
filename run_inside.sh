@@ -51,7 +51,7 @@ trap cleanup SIGINT SIGTERM
 # 1. Start Flask server
 echo -e "${BLUE}[1/3] Starting Flask server (port 5000)...${NC}"
 cd dut
-python main.py > ../logs/server.log 2>&1 &
+python3 main.py > ../logs/server.log 2>&1 &
 SERVER_PID=$!
 cd ..
 echo "Flask server PID: $SERVER_PID"
