@@ -74,14 +74,21 @@ public class MutexAdapter implements Adapter {
         int cid = params[0];
 
         if (chan == IN_REQUEST) {
+            System.out.println(
+                "[ADAPTER] perform: request(" + cid + ") - calling pollRequest"
+            );
             pollRequest(cid);
         } else if (chan == IN_DONE) {
+            System.out.println(
+                "[ADAPTER] perform: done(" + cid + ") - calling sendDone"
+            );
             sendDone(cid);
         }
     }
 
     // ── request → (poll) → grant loop ───────────────────────────────────────
     private void pollRequest(int cid) {
+        long startTime = System.nanoTime();
         HttpRequest req = HttpRequest.newBuilder(
             base.resolve("/api/requesting/" + cid)
         )
@@ -92,11 +99,29 @@ public class MutexAdapter implements Adapter {
         http
             .sendAsync(req, HttpResponse.BodyHandlers.ofString())
             .thenAccept(resp -> {
+                long endTime = System.nanoTime();
+                long elapsedMs = (endTime - startTime) / 1_000_000;
                 int status = resp.statusCode();
+
+                System.out.println(
+                    "[ADAPTER] pollRequest(" +
+                        cid +
+                        ") received status " +
+                        status +
+                        " after " +
+                        elapsedMs +
+                        "ms"
+                );
 
                 switch (status) {
                     case 200: // proceed - grant access
+                        System.out.println(
+                            "[ADAPTER] Reporting grant(" + cid + ") to TRON"
+                        );
                         reporter.report(OUT_GRANT, new int[] { cid });
+                        System.out.println(
+                            "[ADAPTER] Grant(" + cid + ") reported successfully"
+                        );
                         break;
                     case 202: // queued - keep polling
                     case 409: // already_in_queue - keep polling
