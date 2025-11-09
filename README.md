@@ -53,6 +53,15 @@ Remember to add tron to your path or use the full path of tron such as this `../
 
 In a third terminal, run this in the projet root:
 
+
+`no such file or directory`. this means you dont have tron properly set up and installed.
+
+sudo dpkg --add-architecture i386
+sudo apt update
+sudo apt install libc6:i386 libstdc++6:i386 zlib1g:i386
+
+
+
 ```bash
 tron -u 4000,4000 -P 10,200 -F 300 -I SocketAdapter -v 9 src/mutex/centralized_mutex.xml -- localhost 9999
 ```
@@ -67,3 +76,41 @@ tron -u 4000,4000 -P 10,200 -F 300 -I SocketAdapter -v 9 src/mutex/centralized_m
 | `-v 9`                  | Verbose logging level                     |
 | `centralized_mutex.xml` | Your UPPAAL model                         |
 | `-- localhost 9999`     | TRON connects to your adapter             |
+
+
+
+
+# config file example (this one works, so if you fuck up you can revert it from here.)
+```
+{
+  "_comment": "Example configuration file for the Mutex Testing Environment",
+  "_note": "All paths are relative to the project root (where run_inside.sh is located)",
+  "logs": {
+    "path": "logs/"
+  },
+  "dut": {
+    "project_path": "dut",
+    "project_path": "dut/centralized_mutex",
+    "main_file": "main.py",
+    "python_cmd": "python3"
+  },
+  "uppaal": {
+    "model_file": "src/mutex/centralized_mutex.xml",
+    "tron_path": "../uppaal-tron-1.5-linux/tron",
+    "options": {
+      "u": "4000,4000",
+      "P": "10,200",
+      "F": "300",
+      "I": "SocketAdapter",
+      "v": "9"
+    }
+  },
+  "adapter": {
+    "port": "9999",
+    "server_base": "http://localhost:5000"
+  },
+  "server": {
+    "port": "5000"
+  }
+}
+```

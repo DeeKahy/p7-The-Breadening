@@ -90,7 +90,7 @@ public class MutexAdapter implements Adapter {
     private void pollRequest(int cid) {
         long startTime = System.nanoTime();
         HttpRequest req = HttpRequest.newBuilder(
-            base.resolve("/api/requesting/" + cid)
+            base.resolve("/api/requesting/" + cid) // pottentially grab this from the config file.
         )
             .timeout(reqTimeout)
             .GET()
@@ -159,7 +159,7 @@ public class MutexAdapter implements Adapter {
     // ── done → (maybe retry) ────────────────────────────────────────────────
     private void sendDone(int cid) {
         HttpRequest req = HttpRequest.newBuilder(
-            base.resolve("/api/returning/" + cid)
+            base.resolve("/api/returning/" + cid) // pottentially grab this from  config file
         )
             .timeout(reqTimeout)
             .GET()
