@@ -16,11 +16,11 @@ def requesting(clientno):
     if clientno not in queue:
         queue.append(clientno)
 
-    if queue.index(clientno) == 0 and isAvailable:
+    if queue.index(clientno) == 0:
         isAvailable = False
         return jsonify({
             "message": "proceed",
-            "position": queue.index(clientno)
+            "position": 0
         }), 200 #"okay go right straight totally ahead"
     elif queue.index(clientno) > 0:
         return jsonify({
@@ -49,7 +49,7 @@ def returning(clientno):
             }), 423 #"Not your turn yet, please wait until client[" + str(queue.index(clientno) - 1 ) + "] has returned"
         else:
             return jsonify({
-                "message":"not_in_queue"
+                "message": "not_in_queue"
             }), 409 #"You are not in the queue"
     else:
         queue.pop(0)
@@ -65,6 +65,7 @@ def returning(clientno):
             return jsonify({
                 "message": "queue_empty"
             }), 204 #"Queue is now empty."
+
 
 # Main Driver Function
 if __name__ == '__main__':
