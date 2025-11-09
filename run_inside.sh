@@ -3,6 +3,43 @@
 # This script should be run from INSIDE the distrobox
 # Run this if you're already in: distrobox enter breadening
 
+# Default config file
+CONFIG_FILE="config.json"
+
+get_config() {
+    local path="$1"
+    local default="$2"
+    
+    local value=$(jq -r "$path // \"$default\"" "$CONFIG_FILE" 2>/dev/null)
+    if [ $? -ne 0 ] || [ -z "$value" ] || [ "$value" = "null" ]; then
+        echo "$default"
+    else
+        echo "$value"
+    fi
+}
+
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+    echo "Error: jq is not installed. Please install it to use config files."
+    echo "Run: sudo apt-get install jq"
+    exit 1
+fi
+
+# Load configuration
+DUT_PROJECT_PATH=$(get_config ".dut.project_path" "dut")
+DUT_MAIN_FILE=$(get_config ".dut.main_file" "main.py")
+DUT_PYTHON_CMD=$(get_config ".dut.python_cmd" "python3")
+UPPAAL_MODEL=$(get_config ".uppaal.model_file" "src/mutex/centralized_mutex.xml")
+UPPAAL_TRON_PATH=$(get_config ".uppaal.tron_path" "../uppaal-tron-1.5-linux/tron")
+UPPAAL_OPT_U=$(get_config ".uppaal.options.u" "4000,4000")
+UPPAAL_OPT_P=$(get_config ".uppaal.options.P" "10,200")
+UPPAAL_OPT_F=$(get_config ".uppaal.options.F" "300")
+UPPAAL_OPT_I=$(get_config ".uppaal.options.I" "SocketAdapter")
+UPPAAL_OPT_V=$(get_config ".uppaal.options.v" "9")
+ADAPTER_PORT=$(get_config ".adapter.port" "9999")
+ADAPTER_SERVER_BASE=$(get_config ".adapter.server_base" "http://localhost:5000")
+SERVER_PORT=$(get_config ".server.port" "5000")
+
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -49,9 +86,9 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # 1. Start Flask server
-echo -e "${BLUE}[1/3] Starting Flask server (port 5000)...${NC}"
-cd dut
-python3 main.py > ../logs/server.log 2>&1 &
+echo -e "${BLUE}[1/3] Starting Flask server (port $SERVER_PORT)...${NC}"
+cd "$DUT_PROJECT_PATH"
+$DUT_PYTHON_CMD $DUT_MAIN_FILE > ../logs/server.log 2>&1 &
 SERVER_PID=$!
 cd ..
 echo "Flask server PID: $SERVER_PID"
@@ -67,8 +104,8 @@ echo -e "${GREEN}✓ Flask server running${NC}"
 echo ""
 
 # 2. Start Java adapter
-echo -e "${BLUE}[2/3] Starting MutexAdapter (port 9999)...${NC}"
-java -DmutexServerBase="http://localhost:5000" -cp build mutex.MutexAdapter 9999 > logs/adapter.log 2>&1 &
+echo -e "${BLUE}[2/3] Starting MutexAdapter (port $ADAPTER_PORT)...${NC}"
+java -DmutexServerBase="$ADAPTER_SERVER_BASE" -cp build mutex.MutexAdapter $ADAPTER_PORT > logs/adapter.log 2>&1 &
 ADAPTER_PID=$!
 echo "Adapter PID: $ADAPTER_PID"
 sleep 2  # Give the adapter time to start
@@ -85,7 +122,7 @@ echo ""
 
 # 3. Start TRON
 echo -e "${BLUE}[3/3] Starting UPPAAL TRON...${NC}"
-../uppaal-tron-1.5-linux/tron -u 4000,4000 -P 10,200 -F 300 -I SocketAdapter -v 9 src/mutex/centralized_mutex.xml -- localhost 9999 > logs/tron.log 2>&1 &
+$UPPAAL_TRON_PATH -u $UPPAAL_OPT_U -P $UPPAAL_OPT_P -F $UPPAAL_OPT_F -I $UPPAAL_OPT_I -v $UPPAAL_OPT_V $UPPAAL_MODEL -- localhost $ADAPTER_PORT > logs/tron.log 2>&1 &
 TRON_PID=$!
 echo "TRON PID: $TRON_PID"
 echo -e "${GREEN}✓ TRON running${NC}"
