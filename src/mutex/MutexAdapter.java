@@ -39,7 +39,6 @@ public class MutexAdapter implements Adapter {
         .connectTimeout(Duration.ofSeconds(5))
         .build();
 
-    /** Base URL for the Flask mutex server (‑DmutexServerBase=…) */
     private final URI base = URI.create(
         System.getProperty("mutexServerBase", "http://localhost:5000")
     );
@@ -61,7 +60,6 @@ public class MutexAdapter implements Adapter {
         reporter.setTimeUnit(50_000); // 50 ms per model time unit
         reporter.setTimeout(1_000_000); // test budget: 100 s
 
-        // Bind existing *global* int variables – not the template constant `id`!
         IN_REQUEST = reporter.addInput("request");
         reporter.addVarToInput(IN_REQUEST, "requesting_c_id");
 
