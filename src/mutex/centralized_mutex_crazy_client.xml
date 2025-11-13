@@ -59,6 +59,8 @@ const int MIN2 = 2;  // used to check that qsize &gt;= 2
 const int MAX0 = 3;  // used to check that qsize &lt;= 0
 const int MIN1 = 4;  // used to check that qsize &gt;= 1
 
+clock time;
+
 typedef struct{
     int queue[N];
     int[0,N] head;
@@ -115,12 +117,16 @@ bool isOccupied(int mode) {
 		</location>
 		<location id="id8" x="-2057" y="-671">
 			<name x="-2067" y="-705">returned</name>
+			<label kind="invariant" x="-2040" y="-680">time &lt;= 5</label>
 		</location>
 		<location id="id9" x="-1912" y="-391">
+			<label kind="invariant" x="-1946" y="-382">time &lt;= 5</label>
 		</location>
 		<location id="id10" x="-1921" y="-493">
+			<label kind="invariant" x="-1946" y="-484">time &lt;= 5</label>
 		</location>
 		<location id="id11" x="-2117" y="-587">
+			<label kind="invariant" x="-2210" y="-595">time &lt;= 5</label>
 		</location>
 		<init ref="id6"/>
 		<transition id="id12">
@@ -133,17 +139,20 @@ bool isOccupied(int mode) {
 			<source ref="id11"/>
 			<target ref="id6"/>
 			<label kind="synchronisation" x="-2142" y="-544">grant!</label>
+			<label kind="assignment" x="-2150" y="-527">time = 0</label>
 		</transition>
 		<transition id="id14">
 			<source ref="id8"/>
 			<target ref="id11"/>
 			<label kind="guard" x="-2219" y="-646">isOccupied(MIN1)</label>
-			<label kind="assignment" x="-2219" y="-629">grant_client()</label>
+			<label kind="assignment" x="-2219" y="-629">grant_client(),
+time = 0</label>
 		</transition>
 		<transition id="id15">
 			<source ref="id6"/>
 			<target ref="id10"/>
 			<label kind="synchronisation" x="-2014" y="-510">request?</label>
+			<label kind="assignment" x="-2039" y="-493">time = 0</label>
 			<nail x="-1989" y="-493"/>
 		</transition>
 		<transition id="id16">
@@ -151,12 +160,14 @@ bool isOccupied(int mode) {
 			<target ref="id7"/>
 			<label kind="guard" x="-1904" y="-569">not contains(requesting_c_id)</label>
 			<label kind="assignment" x="-1904" y="-535">enqueue(requesting_c_id),
-requesting_c_id = -1</label>
+requesting_c_id = -1,
+time = 0</label>
 		</transition>
 		<transition id="id17">
 			<source ref="id9"/>
 			<target ref="id6"/>
 			<label kind="synchronisation" x="-2048" y="-391">grant!</label>
+			<label kind="assignment" x="-2039" y="-391">time = 0</label>
 			<nail x="-2057" y="-391"/>
 		</transition>
 		<transition id="id18">
@@ -177,7 +188,8 @@ requesting_c_id = -1</label>
 			<source ref="id6"/>
 			<target ref="id8"/>
 			<label kind="synchronisation" x="-2048" y="-604">done?</label>
-			<label kind="assignment" x="-2048" y="-587">dequeue()</label>
+			<label kind="assignment" x="-2048" y="-587">dequeue(),
+time = 0</label>
 		</transition>
 		<transition id="id21">
 			<source ref="id7"/>
