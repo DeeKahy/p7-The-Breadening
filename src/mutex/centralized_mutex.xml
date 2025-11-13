@@ -1,46 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
 <nta>
-	<declaration>chan request, grant, done;
-int requesting_c_id = -1;
-int granted_c_id    = -1;</declaration>
+	<declaration> chan request, grant, done;
+ int requesting_c_id = -1;
+ int granted_c_id    = -1;</declaration>
 	<template>
 		<name>Client</name>
 		<parameter>const int id</parameter>
 		<declaration>clock delay;</declaration>
-		<location id="id0" x="-195" y="-51">
-			<name x="-178" y="-60">begin</name>
-			<label kind="invariant" x="-178" y="-42">delay &lt;= 5</label>
+		<location id="id0" x="-467" y="-1292">
+			<name x="-450" y="-1301">begin</name>
+			<label kind="invariant" x="-450" y="-1283">delay &lt;= 5</label>
 		</location>
-		<location id="id1" x="-331" y="51">
-			<name x="-365" y="60">using</name>
-			<label kind="invariant" x="-450" y="43">delay &lt;= 10</label>
+		<location id="id1" x="-603" y="-1190">
+			<name x="-637" y="-1181">using</name>
+			<label kind="invariant" x="-722" y="-1198">delay &lt;= 10</label>
 		</location>
 		<init ref="id0"/>
 		<transition id="id2">
 			<source ref="id1"/>
 			<target ref="id0"/>
-			<label kind="guard" x="-331" y="-93">delay &gt;= 2</label>
-			<label kind="synchronisation" x="-331" y="-110">done!</label>
-			<label kind="assignment" x="-331" y="-76">delay = 0</label>
-			<nail x="-331" y="-51"/>
+			<label kind="guard" x="-603" y="-1334">delay &gt;= 2</label>
+			<label kind="synchronisation" x="-603" y="-1351">done!</label>
+			<label kind="assignment" x="-603" y="-1317">delay = 0</label>
+			<nail x="-603" y="-1292"/>
 		</transition>
 		<transition id="id3">
 			<source ref="id0"/>
 			<target ref="id0"/>
-			<label kind="synchronisation" x="-229" y="-187">request!</label>
-			<label kind="assignment" x="-229" y="-153">requesting_c_id = id,
+			<label kind="synchronisation" x="-501" y="-1428">request!</label>
+			<label kind="assignment" x="-501" y="-1394">requesting_c_id = id,
 delay = 0</label>
-			<nail x="-229" y="-111"/>
-			<nail x="-153" y="-111"/>
+			<nail x="-501" y="-1352"/>
+			<nail x="-425" y="-1352"/>
 		</transition>
 		<transition id="id4">
 			<source ref="id0"/>
 			<target ref="id1"/>
-			<label kind="guard" x="-306" y="94">granted_c_id == id</label>
-			<label kind="synchronisation" x="-306" y="60">grant?</label>
-			<label kind="assignment" x="-306" y="77">delay = 0</label>
-			<nail x="-195" y="51"/>
+			<label kind="guard" x="-578" y="-1147">granted_c_id == id</label>
+			<label kind="synchronisation" x="-578" y="-1181">grant?</label>
+			<label kind="assignment" x="-578" y="-1164">delay = 0</label>
+			<nail x="-467" y="-1190"/>
 		</transition>
 	</template>
 	<template>
@@ -51,11 +51,13 @@ const int MIN2 = 2;  // used to check that qsize &gt;= 2
 const int MAX0 = 3;  // used to check that qsize &lt;= 0
 const int MIN1 = 4;  // used to check that qsize &gt;= 1
 
+clock time;
+
 typedef struct{
     int queue[N];
-    int head;
-    int tail;
-    int qsize;
+    int[0,N] head;
+    int[-1,N] tail;
+    int[0,N] qsize;
 } Server;
 
 Server server = {{0, 0, 0}, 0, -1, 0};     // holds waiting client IDs
@@ -98,167 +100,185 @@ bool isOccupied(int mode) {
     else
         return false;         // safety fallback
 }</declaration>
-		<location id="id5" x="-246" y="119">
-			<name x="-297" y="119">begin</name>
+		<location id="id5" x="-2057" y="-493">
+			<name x="-2108" y="-493">begin</name>
 		</location>
-		<location id="id6" x="51" y="119">
-			<name x="68" y="93">requested</name>
+		<location id="id6" x="-1760" y="-493">
+			<name x="-1743" y="-519">requested</name>
 			<committed/>
 		</location>
-		<location id="id7" x="-246" y="-59">
-			<name x="-256" y="-93">returned</name>
+		<location id="id7" x="-2057" y="-671">
+			<name x="-2067" y="-705">returned</name>
+			<label kind="invariant" x="-2040" y="-680">time &lt;= 5</label>
 		</location>
-		<location id="id8" x="-101" y="221">
+		<location id="id8" x="-1912" y="-391">
+			<label kind="invariant" x="-1955" y="-374">time &lt;= 5</label>
 		</location>
-		<location id="id9" x="-110" y="119">
+		<location id="id9" x="-1921" y="-493">
+			<label kind="invariant" x="-1946" y="-484">time &lt;= 5</label>
 		</location>
-		<location id="id10" x="-306" y="25">
+		<location id="id10" x="-2117" y="-587">
+			<label kind="invariant" x="-2210" y="-595">time &lt;= 5</label>
 		</location>
 		<init ref="id5"/>
 		<transition id="id11">
-			<source ref="id10"/>
-			<target ref="id5"/>
-			<label kind="synchronisation" x="-331" y="68">grant!</label>
-		</transition>
-		<transition id="id12">
-			<source ref="id7"/>
-			<target ref="id10"/>
-			<label kind="guard" x="-408" y="-34">isOccupied(MIN1)</label>
-			<label kind="assignment" x="-408" y="-17">grant_client()</label>
-		</transition>
-		<transition id="id13">
-			<source ref="id5"/>
-			<target ref="id9"/>
-			<label kind="synchronisation" x="-237" y="76">request?</label>
-		</transition>
-		<transition id="id14">
 			<source ref="id9"/>
 			<target ref="id5"/>
-			<label kind="guard" x="-237" y="93">contains(requesting_c_id)</label>
+			<label kind="guard" x="-2048" y="-552">contains(requesting_c_id)</label>
+			<nail x="-1989" y="-527"/>
+		</transition>
+		<transition id="id12">
+			<source ref="id10"/>
+			<target ref="id5"/>
+			<label kind="synchronisation" x="-2142" y="-544">grant!</label>
+			<label kind="assignment" x="-2159" y="-527">time = 0</label>
+		</transition>
+		<transition id="id13">
+			<source ref="id7"/>
+			<target ref="id10"/>
+			<label kind="guard" x="-2219" y="-646">isOccupied(MIN1)</label>
+			<label kind="assignment" x="-2219" y="-629">grant_client(),
+time = 0</label>
+		</transition>
+		<transition id="id14">
+			<source ref="id5"/>
+			<target ref="id9"/>
+			<label kind="synchronisation" x="-2023" y="-510">request?</label>
+			<label kind="assignment" x="-2023" y="-493">time = 0</label>
+			<nail x="-1980" y="-493"/>
 		</transition>
 		<transition id="id15">
 			<source ref="id9"/>
 			<target ref="id6"/>
-			<label kind="guard" x="-93" y="34">not contains(requesting_c_id)</label>
-			<label kind="assignment" x="-93" y="51">enqueue(requesting_c_id),
-requesting_c_id = -1</label>
+			<label kind="guard" x="-1904" y="-569">not contains(requesting_c_id)</label>
+			<label kind="assignment" x="-1904" y="-535">enqueue(requesting_c_id),
+requesting_c_id = -1,
+time = 0</label>
 		</transition>
 		<transition id="id16">
 			<source ref="id8"/>
 			<target ref="id5"/>
-			<label kind="synchronisation" x="-237" y="221">grant!</label>
-			<nail x="-246" y="221"/>
+			<label kind="synchronisation" x="-2048" y="-391">grant!</label>
+			<label kind="assignment" x="-2048" y="-416">time = 0</label>
+			<nail x="-2057" y="-391"/>
 		</transition>
 		<transition id="id17">
 			<source ref="id6"/>
 			<target ref="id8"/>
-			<label kind="guard" x="-50" y="238">isOccupied(MAX1)</label>
-			<label kind="assignment" x="-50" y="221">grant_client()</label>
-			<nail x="51" y="221"/>
+			<label kind="guard" x="-1861" y="-374">isOccupied(MAX1)</label>
+			<label kind="assignment" x="-1861" y="-391">grant_client()</label>
+			<nail x="-1760" y="-391"/>
 		</transition>
 		<transition id="id18">
 			<source ref="id7"/>
 			<target ref="id5"/>
-			<label kind="guard" x="-620" y="17">isOccupied(MAX0)</label>
-			<nail x="-492" y="-59"/>
-			<nail x="-492" y="119"/>
+			<label kind="guard" x="-2431" y="-595">isOccupied(MAX0)</label>
+			<nail x="-2303" y="-671"/>
+			<nail x="-2303" y="-493"/>
 		</transition>
 		<transition id="id19">
 			<source ref="id5"/>
 			<target ref="id7"/>
-			<label kind="synchronisation" x="-237" y="8">done?</label>
-			<label kind="assignment" x="-237" y="25">dequeue()</label>
+			<label kind="synchronisation" x="-2048" y="-604">done?</label>
+			<label kind="assignment" x="-2048" y="-587">dequeue(),
+time = 0</label>
 		</transition>
 		<transition id="id20">
 			<source ref="id6"/>
 			<target ref="id5"/>
-			<label kind="guard" x="-152" y="153">isOccupied(MIN2)</label>
-			<nail x="-110" y="153"/>
+			<label kind="guard" x="-1963" y="-459">isOccupied(MIN2)</label>
+			<nail x="-1921" y="-459"/>
 		</transition>
 	</template>
-	<system>// Place template instantiations here.
-const int N = 3;
-// List one or more processes to be composed into a system.
-C0 = Client(0);
-C1 = Client(1);
-C2 = Client(2);
-
-S  = Server(N);
-
-system S, C0, C1, C2;
+	<system> // Place template instantiations here.
+ const int N = 3;
+ C0 = Client(0);
+ C1 = Client(1);
+ C2 = Client(2);
+ S  = Server(N);
+ // List one or more processes to be composed into a system.
+ system S, C0, C1, C2;
 </system>
 	<queries>
 		<query>
 			<formula>A[] not deadlock</formula>
 			<comment/>
-			<result outcome="success" type="quality" timestamp="2025-10-23 12:40:45 +0200">
+			<result outcome="success" type="quality" timestamp="2025-10-24 12:57:47 +0200">
 			</result>
 		</query>
 		<query>
 			<formula>E&lt;&gt; (C0.using &amp;&amp; C1.using) || (C0.using &amp;&amp; C2.using) || (C1.using &amp;&amp; C2.using)</formula>
 			<comment/>
-			<result outcome="failure" type="quality" timestamp="2025-10-23 13:09:46 +0200">
+			<result outcome="failure" type="quality" timestamp="2025-10-24 12:57:48 +0200">
 			</result>
 		</query>
 		<query>
 			<formula>E&lt;&gt; (C0.using || C1.using || C2.using)</formula>
 			<comment/>
-			<result outcome="success" type="quality" timestamp="2025-10-23 13:10:04 +0200">
+			<result outcome="success" type="quality" timestamp="2025-10-24 12:57:49 +0200">
 			</result>
 		</query>
 		<query>
 			<formula>E&lt;&gt; ((C0.begin &amp;&amp; S.returned) || (C1.begin &amp;&amp; S.returned) || (C2.begin &amp;&amp; S.returned)) &amp;&amp; ((C0.using) || (C1.using) || (C2.using))</formula>
 			<comment/>
-			<result outcome="failure" type="quality" timestamp="2025-10-23 13:10:21 +0200">
+			<result outcome="failure" type="quality" timestamp="2025-10-24 12:57:51 +0200">
 			</result>
 		</query>
 		<query>
 			<formula>E&lt;&gt; (C0.using &amp;&amp; C0.delay&gt;=11) || (C1.using &amp;&amp; C1.delay&gt;=11) || (C2.using &amp;&amp; C2.delay&gt;=11)</formula>
 			<comment/>
-			<result outcome="failure" type="quality" timestamp="2025-10-23 13:10:36 +0200">
+			<result outcome="failure" type="quality" timestamp="2025-10-24 12:57:52 +0200">
 			</result>
 		</query>
 		<query>
 			<formula>E&lt;&gt; (C0.using &amp;&amp; C0.delay&lt;=10) || (C1.using &amp;&amp; C1.delay&lt;=10) || (C2.using &amp;&amp; C2.delay&lt;=10)</formula>
 			<comment/>
-			<result outcome="success" type="quality" timestamp="2025-10-23 13:10:45 +0200">
+			<result outcome="success" type="quality" timestamp="2025-10-24 12:57:54 +0200">
 			</result>
 		</query>
 		<query>
 			<formula>E&lt;&gt; (S.requested &amp;&amp; S.server.qsize&gt;=1)</formula>
 			<comment/>
-			<result outcome="success" type="quality" timestamp="2025-10-23 13:10:57 +0200">
+			<result outcome="success" type="quality" timestamp="2025-10-24 12:57:56 +0200">
 			</result>
 		</query>
 		<query>
 			<formula>E&lt;&gt; (S.requested &amp;&amp; S.server.qsize&lt;=0)</formula>
 			<comment/>
-			<result outcome="failure" type="quality" timestamp="2025-10-23 13:11:05 +0200">
+			<result outcome="failure" type="quality" timestamp="2025-10-24 12:57:57 +0200">
 			</result>
 		</query>
 		<query>
 			<formula>E&lt;&gt; (S.returned &amp;&amp; S.server.qsize&gt;=0)</formula>
 			<comment/>
-			<result outcome="success" type="quality" timestamp="2025-10-23 13:11:13 +0200">
+			<result outcome="success" type="quality" timestamp="2025-10-24 12:57:58 +0200">
 			</result>
 		</query>
 		<query>
 			<formula>E&lt;&gt; (S.returned &amp;&amp; S.server.qsize&lt;=-1)</formula>
 			<comment/>
-			<result outcome="failure" type="quality" timestamp="2025-10-23 13:11:28 +0200">
+			<result outcome="failure" type="quality" timestamp="2025-10-24 12:58:00 +0200">
 			</result>
 		</query>
 		<query>
 			<formula>E&lt;&gt; S.server.qsize == 3</formula>
 			<comment/>
-			<result outcome="success" type="quality" timestamp="2025-10-23 13:12:09 +0200">
+			<result outcome="success" type="quality" timestamp="2025-10-24 12:58:01 +0200">
 			</result>
 		</query>
 		<query>
 			<formula>E&lt;&gt; S.server.qsize == 4</formula>
 			<comment/>
-			<result outcome="failure" type="quality" timestamp="2025-10-23 13:11:54 +0200">
+			<result outcome="failure" type="quality" timestamp="2025-10-24 12:58:02 +0200">
 			</result>
+		</query>
+		<query>
+			<formula/>
+			<comment/>
+		</query>
+		<query>
+			<formula/>
+			<comment/>
 		</query>
 	</queries>
 </nta>
