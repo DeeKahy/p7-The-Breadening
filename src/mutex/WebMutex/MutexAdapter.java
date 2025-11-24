@@ -49,7 +49,7 @@ public class MutexAdapter implements Adapter {
         Executors.newScheduledThreadPool(3);
 
     // Track clients that are active
-    private final ConcurrentHashMap<Integer, ScheduledFuture<?>> activePolls = 
+    private final ConcurrentHashMap<Integer, ScheduledFuture<?>> activePolls =
         new ConcurrentHashMap<>();
 
     // ── Adapter ⇄ TRON interface ────────────────────────────────────────────
@@ -76,7 +76,9 @@ public class MutexAdapter implements Adapter {
         int cid = params[0];
 
         if (chan == IN_REQUEST) {
-            System.out.println("Perform: request(" + cid + ") - calling pollRequest");
+            System.out.println(
+                "Perform: request(" + cid + ") - calling pollRequest"
+            );
             startPolling(cid);
         } else if (chan == IN_DONE) {
             System.out.println("Perform: done(" + cid + ") - calling sendDone");
@@ -94,7 +96,7 @@ public class MutexAdapter implements Adapter {
             10,
             TimeUnit.MILLISECONDS
         );
-        
+
         activePolls.put(cid, future);
     }
 
@@ -108,7 +110,7 @@ public class MutexAdapter implements Adapter {
     // ── request → (poll) → grant loop ───────────────────────────────────────
     private void pollRequest(int cid) {
         HttpRequest req = HttpRequest.newBuilder(
-            base.resolve("/api/requesting/" + cid)
+            base.resolve("/api/requesting/" + cid) // pottentially grab this from the config file.
         )
             .timeout(reqTimeout)
             .GET()
@@ -116,23 +118,32 @@ public class MutexAdapter implements Adapter {
 
         try {
             long startNs = System.nanoTime();
-            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> resp = http.send(
+                req,
+                HttpResponse.BodyHandlers.ofString()
+            );
             long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
-            
+
             int status = resp.statusCode();
-            
+
             System.out.println(
-                "pollRequest(" + cid + ") status: " + status + "after" +
-                " (" + elapsedMs + "ms)"
+                "pollRequest(" +
+                    cid +
+                    ") status: " +
+                    status +
+                    "after" +
+                    " (" +
+                    elapsedMs +
+                    "ms)"
             );
 
-            if (status == 200) { // proceed - grant access
+            if (status == 200) {
+                // proceed - grant access
                 stopPolling(cid);
                 System.out.println("Reporting grant(" + cid + ") to TRON");
                 reporter.report(OUT_GRANT, new int[] { cid });
                 System.out.println("Grant(" + cid + ") reported successfully");
             }
-            
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             System.err.println("Poll interrupted for client " + cid);
@@ -156,38 +167,55 @@ public class MutexAdapter implements Adapter {
                 .build();
 
             try {
-                HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> resp = http.send(
+                    req,
+                    HttpResponse.BodyHandlers.ofString()
+                );
                 int status = resp.statusCode();
 
                 System.out.println("sendDone(" + cid + ") status: " + status);
 
                 switch (status) {
                     case 200:
-                        System.out.println("Client " + cid + " returned successfully");
+                        System.out.println(
+                            "Client " + cid + " returned successfully"
+                        );
                         break;
-
                     case 204:
                         System.out.println("Queue empty after client " + cid);
                         break;
-
                     case 409:
-                        System.err.println("ERROR: Client " + cid + " was not in queue!");
+                        System.err.println(
+                            "ERROR: Client " + cid + " was not in queue!"
+                        );
                         break;
-
                     case 423:
-                        System.err.println("ERROR: Not client " + cid + "'s turn!");
-                        sched.schedule(() -> sendDone(cid), 100, TimeUnit.MILLISECONDS);
+                        System.err.println(
+                            "ERROR: Not client " + cid + "'s turn!"
+                        );
+                        sched.schedule(
+                            () -> sendDone(cid),
+                            100,
+                            TimeUnit.MILLISECONDS
+                        );
                         break;
-
                     case 500:
-                        System.err.println("ERROR: Server error for client " + cid);
-                        sched.schedule(() -> sendDone(cid), 500, TimeUnit.MILLISECONDS);
+                        System.err.println(
+                            "ERROR: Server error for client " + cid
+                        );
+                        sched.schedule(
+                            () -> sendDone(cid),
+                            500,
+                            TimeUnit.MILLISECONDS
+                        );
                         break;
-
                     default:
                         System.err.println(
-                            "Unexpected status " + status + 
-                            " for done(" + cid + ")"
+                            "Unexpected status " +
+                                status +
+                                " for done(" +
+                                cid +
+                                ")"
                         );
                 }
             } catch (Exception ex) {
@@ -203,14 +231,14 @@ public class MutexAdapter implements Adapter {
         int port = (args.length > 0) ? Integer.parseInt(args[0]) : 9999;
         MutexAdapter adapter = new MutexAdapter();
         Reporter reporter = new Reporter(adapter, port);
-        
+
         Runtime.getRuntime().addShutdownHook(
             new Thread(() -> {
                 System.out.println("Shutting down...");
                 adapter.sched.shutdownNow();
             })
         );
-        
+
         System.out.println("Listening on port " + port);
         System.out.println("Flask server: " + adapter.base);
         reporter.join();

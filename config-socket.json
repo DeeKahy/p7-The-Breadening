@@ -1,0 +1,33 @@
+{
+  "version": "socket",
+  "logs": {
+    "path": "logs/"
+  },
+  "dut": {
+    "project_path": "dut/SocketVersion",
+    "main_file": "main.py",
+    "python_cmd": "python3"
+  },
+  "mutex": {
+    "adapter_path": "src/mutex/SocketMutex/MutexAdapter.java",
+    "adapter_class": "mutex.MutexAdapter"
+  },
+  "uppaal": {
+    "model_file": "src/mutex/centralized_mutex.xml",
+    "tron_path": "../uppaal-tron-1.5-linux/tron",
+    "options": {
+      "u": "4000,4000",
+      "P": "10,200",
+      "F": "300",
+      "I": "SocketAdapter",
+      "v": "9"
+    }
+  },
+  "adapter": {
+    "port": "9999",
+    "server_base": "ws://localhost:5000"
+  },
+  "server": {
+    "port": "5000"
+  }
+}
