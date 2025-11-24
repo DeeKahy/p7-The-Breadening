@@ -167,7 +167,13 @@ echo ""
 
 # 2. Start Java adapter
 echo -e "${BLUE}[4/5] Starting MutexAdapter (port 9999)...${NC}"
-java -DmutexServerBase="ws://localhost:5000" -cp "build:lib/Java-WebSocket-1.5.3.jar:lib/json-20230227.jar:lib/slf4j-api-2.0.7.jar:lib/slf4j-simple-2.0.7.jar" mutex.MutexAdapter 9999 > logs/adapter.log 2>&1 &
+# Set the correct base URL depending on the version
+if [ "$VERSION" = "web" ]; then
+    MUTEX_BASE_URL="http://localhost:5000"
+else
+    MUTEX_BASE_URL="ws://localhost:5000"
+fi
+java -DmutexServerBase="${MUTEX_BASE_URL}" -cp "build:lib/Java-WebSocket-1.5.3.jar:lib/json-20230227.jar:lib/slf4j-api-2.0.7.jar:lib/slf4j-simple-2.0.7.jar" mutex.MutexAdapter 9999 > logs/adapter.log 2>&1 &
 ADAPTER_PID=$!
 echo "Adapter PID: $ADAPTER_PID"
 sleep 3  # Give the adapter time to start
