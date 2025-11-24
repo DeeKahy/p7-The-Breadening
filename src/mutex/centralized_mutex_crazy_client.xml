@@ -14,10 +14,18 @@
 		</location>
 		<location id="id1" x="-603" y="-1190">
 			<name x="-637" y="-1181">using</name>
-			<label kind="invariant" x="-722" y="-1198">delay &lt;= 10</label>
+			<label kind="invariant" x="-688" y="-1164">delay &lt;= 10</label>
 		</location>
 		<init ref="id0"/>
 		<transition id="id2">
+			<source ref="id1"/>
+			<target ref="id1"/>
+			<label kind="synchronisation" x="-765" y="-1215">request!</label>
+			<label kind="assignment" x="-867" y="-1198">requesting_c_id = id</label>
+			<nail x="-697" y="-1173"/>
+			<nail x="-697" y="-1232"/>
+		</transition>
+		<transition id="id3">
 			<source ref="id1"/>
 			<target ref="id0"/>
 			<label kind="guard" x="-603" y="-1334">delay &gt;= 2</label>
@@ -25,16 +33,16 @@
 			<label kind="assignment" x="-603" y="-1317">delay = 0</label>
 			<nail x="-603" y="-1292"/>
 		</transition>
-		<transition id="id3">
+		<transition id="id4">
 			<source ref="id0"/>
 			<target ref="id0"/>
-			<label kind="synchronisation" x="-501" y="-1428">request!</label>
+			<label kind="synchronisation" x="-501" y="-1411">request!</label>
 			<label kind="assignment" x="-501" y="-1394">requesting_c_id = id,
 delay = 0</label>
 			<nail x="-501" y="-1352"/>
 			<nail x="-425" y="-1352"/>
 		</transition>
-		<transition id="id4">
+		<transition id="id5">
 			<source ref="id0"/>
 			<target ref="id1"/>
 			<label kind="guard" x="-578" y="-1147">granted_c_id == id</label>
@@ -100,92 +108,92 @@ bool isOccupied(int mode) {
     else
         return false;         // safety fallback
 }</declaration>
-		<location id="id5" x="-2057" y="-493">
+		<location id="id6" x="-2057" y="-493">
 			<name x="-2108" y="-493">begin</name>
 		</location>
-		<location id="id6" x="-1760" y="-493">
+		<location id="id7" x="-1760" y="-493">
 			<name x="-1743" y="-519">requested</name>
 			<committed/>
 		</location>
-		<location id="id7" x="-2057" y="-671">
+		<location id="id8" x="-2057" y="-671">
 			<name x="-2067" y="-705">returned</name>
 			<label kind="invariant" x="-2040" y="-680">time &lt;= 5</label>
 		</location>
-		<location id="id8" x="-1912" y="-391">
-			<label kind="invariant" x="-1955" y="-374">time &lt;= 5</label>
+		<location id="id9" x="-1912" y="-391">
+			<label kind="invariant" x="-1946" y="-382">time &lt;= 5</label>
 		</location>
-		<location id="id9" x="-1921" y="-493">
+		<location id="id10" x="-1921" y="-493">
 			<label kind="invariant" x="-1946" y="-484">time &lt;= 5</label>
 		</location>
-		<location id="id10" x="-2117" y="-587">
+		<location id="id11" x="-2117" y="-587">
 			<label kind="invariant" x="-2210" y="-595">time &lt;= 5</label>
 		</location>
-		<init ref="id5"/>
-		<transition id="id11">
-			<source ref="id9"/>
-			<target ref="id5"/>
+		<init ref="id6"/>
+		<transition id="id12">
+			<source ref="id10"/>
+			<target ref="id6"/>
 			<label kind="guard" x="-2048" y="-552">contains(requesting_c_id)</label>
 			<nail x="-1989" y="-527"/>
 		</transition>
-		<transition id="id12">
-			<source ref="id10"/>
-			<target ref="id5"/>
-			<label kind="synchronisation" x="-2142" y="-544">grant!</label>
-			<label kind="assignment" x="-2159" y="-527">time = 0</label>
-		</transition>
 		<transition id="id13">
-			<source ref="id7"/>
-			<target ref="id10"/>
+			<source ref="id11"/>
+			<target ref="id6"/>
+			<label kind="synchronisation" x="-2142" y="-544">grant!</label>
+			<label kind="assignment" x="-2150" y="-527">time = 0</label>
+		</transition>
+		<transition id="id14">
+			<source ref="id8"/>
+			<target ref="id11"/>
 			<label kind="guard" x="-2219" y="-646">isOccupied(MIN1)</label>
 			<label kind="assignment" x="-2219" y="-629">grant_client(),
 time = 0</label>
 		</transition>
-		<transition id="id14">
-			<source ref="id5"/>
-			<target ref="id9"/>
-			<label kind="synchronisation" x="-2023" y="-510">request?</label>
-			<label kind="assignment" x="-2023" y="-493">time = 0</label>
-			<nail x="-1980" y="-493"/>
-		</transition>
 		<transition id="id15">
-			<source ref="id9"/>
-			<target ref="id6"/>
+			<source ref="id6"/>
+			<target ref="id10"/>
+			<label kind="synchronisation" x="-2014" y="-510">request?</label>
+			<label kind="assignment" x="-2039" y="-493">time = 0</label>
+			<nail x="-1989" y="-493"/>
+		</transition>
+		<transition id="id16">
+			<source ref="id10"/>
+			<target ref="id7"/>
 			<label kind="guard" x="-1904" y="-569">not contains(requesting_c_id)</label>
 			<label kind="assignment" x="-1904" y="-535">enqueue(requesting_c_id),
 requesting_c_id = -1,
 time = 0</label>
 		</transition>
-		<transition id="id16">
-			<source ref="id8"/>
-			<target ref="id5"/>
+		<transition id="id17">
+			<source ref="id9"/>
+			<target ref="id6"/>
 			<label kind="synchronisation" x="-2048" y="-391">grant!</label>
-			<label kind="assignment" x="-2048" y="-416">time = 0</label>
+			<label kind="assignment" x="-2039" y="-391">time = 0</label>
 			<nail x="-2057" y="-391"/>
 		</transition>
-		<transition id="id17">
-			<source ref="id6"/>
-			<target ref="id8"/>
+		<transition id="id18">
+			<source ref="id7"/>
+			<target ref="id9"/>
 			<label kind="guard" x="-1861" y="-374">isOccupied(MAX1)</label>
 			<label kind="assignment" x="-1861" y="-391">grant_client()</label>
 			<nail x="-1760" y="-391"/>
 		</transition>
-		<transition id="id18">
-			<source ref="id7"/>
-			<target ref="id5"/>
+		<transition id="id19">
+			<source ref="id8"/>
+			<target ref="id6"/>
 			<label kind="guard" x="-2431" y="-595">isOccupied(MAX0)</label>
 			<nail x="-2303" y="-671"/>
 			<nail x="-2303" y="-493"/>
 		</transition>
-		<transition id="id19">
-			<source ref="id5"/>
-			<target ref="id7"/>
+		<transition id="id20">
+			<source ref="id6"/>
+			<target ref="id8"/>
 			<label kind="synchronisation" x="-2048" y="-604">done?</label>
 			<label kind="assignment" x="-2048" y="-587">dequeue(),
 time = 0</label>
 		</transition>
-		<transition id="id20">
-			<source ref="id6"/>
-			<target ref="id5"/>
+		<transition id="id21">
+			<source ref="id7"/>
+			<target ref="id6"/>
 			<label kind="guard" x="-1963" y="-459">isOccupied(MIN2)</label>
 			<nail x="-1921" y="-459"/>
 		</transition>
