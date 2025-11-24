@@ -1,0 +1,6 @@
+
+logs/tron.log
+logs/server.log
+logs/adapter.log
+/build
+/logs

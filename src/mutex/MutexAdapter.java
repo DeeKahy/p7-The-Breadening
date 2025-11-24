@@ -3,7 +3,6 @@ package mutex;
 import com.uppaal.tron.Adapter;
 import com.uppaal.tron.Reporter;
 import com.uppaal.tron.TronException;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -18,41 +17,49 @@ import java.util.concurrent.*;
  *   grant(id)    ←  HTTP 200 "okay go …"
  *   done(id)     →  GET /api/returning/{id}
  *
- * The only change in this revision is **binding the channels to the two global
- * integer variables that already exist in the model** (`requesting_c_id` and
- * `granted_c_id`).  Using those avoids the runtime error:
- *   addVarToInput: Variable name not found, must be declared as integer.
+ * Updated to handle all Flask server status codes:
+ *   - 200: proceed / returned
+ *   - 202: queued
+ *   - 204: queue_empty
+ *   - 409: already_in_queue / not_in_queue
+ *   - 423: not_your_turn
+ *   - 500: queue_empty_error
  */
 public class MutexAdapter implements Adapter {
 
     // ── TRON channel identifiers ────────────────────────────────────────────
-    private int IN_REQUEST;   // request?
-    private int IN_DONE;      // done?
-    private int OUT_GRANT;    // grant!
+    private int IN_REQUEST; // request?
+    private int IN_DONE; // done?
+    private int OUT_GRANT; // grant!
 
     private Reporter reporter;
 
     // ── HTTP client & config ────────────────────────────────────────────────
     private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(20))
-            .build();
+        .connectTimeout(Duration.ofSeconds(5))
+        .build();
 
-    /** Base URL for the Flask mutex server (‑DmutexServerBase=…) */
-    private final URI base = URI.create(System.getProperty("mutexServerBase", "http://localhost:5000"));
+    private final URI base = URI.create(
+        System.getProperty("mutexServerBase", "http://localhost:5000")
+    );
 
-    private final Duration reqTimeout = Duration.ofSeconds(3);
+    private final Duration reqTimeout = Duration.ofMillis(500);
 
-    private final ScheduledExecutorService sched = Executors.newScheduledThreadPool(2);
+    private final ScheduledExecutorService sched =
+        Executors.newScheduledThreadPool(3);
+
+    // Track clients that are active
+    private final ConcurrentHashMap<Integer, ScheduledFuture<?>> activePolls = 
+        new ConcurrentHashMap<>();
 
     // ── Adapter ⇄ TRON interface ────────────────────────────────────────────
     @Override
     public void configure(Reporter reporter) throws TronException, IOException {
         this.reporter = reporter;
 
-        reporter.setTimeUnit(50_000);   // 50 ms per model time unit
+        reporter.setTimeUnit(50_000); // 50 ms per model time unit
         reporter.setTimeout(1_000_000); // test budget: 100 s
 
-        // Bind existing *global* int variables – not the template constant `id`!
         IN_REQUEST = reporter.addInput("request");
         reporter.addVarToInput(IN_REQUEST, "requesting_c_id");
 
@@ -69,63 +76,143 @@ public class MutexAdapter implements Adapter {
         int cid = params[0];
 
         if (chan == IN_REQUEST) {
-            pollRequest(cid);
+            System.out.println("Perform: request(" + cid + ") - calling pollRequest");
+            startPolling(cid);
         } else if (chan == IN_DONE) {
+            System.out.println("Perform: done(" + cid + ") - calling sendDone");
+            stopPolling(cid);
             sendDone(cid);
+        }
+    }
+
+    private void startPolling(int cid) {
+        stopPolling(cid);
+
+        ScheduledFuture<?> future = sched.scheduleAtFixedRate(
+            () -> pollRequest(cid),
+            0,
+            10,
+            TimeUnit.MILLISECONDS
+        );
+        
+        activePolls.put(cid, future);
+    }
+
+    private void stopPolling(int cid) {
+        ScheduledFuture<?> future = activePolls.remove(cid);
+        if (future != null) {
+            future.cancel(false);
         }
     }
 
     // ── request → (poll) → grant loop ───────────────────────────────────────
     private void pollRequest(int cid) {
-        HttpRequest req = HttpRequest.newBuilder(base.resolve("/api/requesting/" + cid))
-                .timeout(reqTimeout)
-                .GET()
-                .build();
+        HttpRequest req = HttpRequest.newBuilder(
+            base.resolve("/api/requesting/" + cid)
+        )
+            .timeout(reqTimeout)
+            .GET()
+            .build();
 
-        http.sendAsync(req, HttpResponse.BodyHandlers.ofString())
-                .thenAccept(resp -> {
-                    String body = safe(resp.body());
-                    if (body.startsWith("okay go")) {
-                        reporter.report(OUT_GRANT, new int[]{cid});
-                    }
-                })
-                .exceptionally(ex -> {
-                    sched.schedule(() -> pollRequest(cid), 2, TimeUnit.SECONDS);
-                    return null;
-                });
+        try {
+            long startNs = System.nanoTime();
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
+            
+            int status = resp.statusCode();
+            
+            System.out.println(
+                "pollRequest(" + cid + ") status: " + status + "after" +
+                " (" + elapsedMs + "ms)"
+            );
+
+            if (status == 200) { // proceed - grant access
+                stopPolling(cid);
+                System.out.println("Reporting grant(" + cid + ") to TRON");
+                reporter.report(OUT_GRANT, new int[] { cid });
+                System.out.println("Grant(" + cid + ") reported successfully");
+            }
+            
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("Poll interrupted for client " + cid);
+        } catch (Exception ex) {
+            if (activePolls.containsKey(cid)) {
+                System.err.println(
+                    "Poll error for client " + cid + ": " + ex.getMessage()
+                );
+            }
+        }
     }
 
     // ── done → (maybe retry) ────────────────────────────────────────────────
     private void sendDone(int cid) {
-        HttpRequest req = HttpRequest.newBuilder(base.resolve("/api/returning/" + cid))
+        sched.execute(() -> {
+            HttpRequest req = HttpRequest.newBuilder(
+                base.resolve("/api/returning/" + cid)
+            )
                 .timeout(reqTimeout)
                 .GET()
                 .build();
 
-        http.sendAsync(req, HttpResponse.BodyHandlers.ofString())
-                .thenAccept(resp -> {
-                    String body = safe(resp.body());
-                    if (body.contains("Returning")) {
-                        String needle = "next is";
-                        String tail = body.substring(body.toLowerCase().indexOf(needle) + needle.length()).trim();
-                        int next_id = Integer.parseInt(tail);
-                        reporter.report(OUT_GRANT, new int[]{next_id});
-                    }
-                })
-                .exceptionally(ex -> {
-                    sched.schedule(() -> sendDone(cid), 5, TimeUnit.SECONDS);
-                    return null;
-                });
+            try {
+                HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+                int status = resp.statusCode();
+
+                System.out.println("sendDone(" + cid + ") status: " + status);
+
+                switch (status) {
+                    case 200:
+                        System.out.println("Client " + cid + " returned successfully");
+                        break;
+
+                    case 204:
+                        System.out.println("Queue empty after client " + cid);
+                        break;
+
+                    case 409:
+                        System.err.println("ERROR: Client " + cid + " was not in queue!");
+                        break;
+
+                    case 423:
+                        System.err.println("ERROR: Not client " + cid + "'s turn!");
+                        sched.schedule(() -> sendDone(cid), 100, TimeUnit.MILLISECONDS);
+                        break;
+
+                    case 500:
+                        System.err.println("ERROR: Server error for client " + cid);
+                        sched.schedule(() -> sendDone(cid), 500, TimeUnit.MILLISECONDS);
+                        break;
+
+                    default:
+                        System.err.println(
+                            "Unexpected status " + status + 
+                            " for done(" + cid + ")"
+                        );
+                }
+            } catch (Exception ex) {
+                System.err.println(
+                    "Done failed for client " + cid + ": " + ex.getMessage()
+                );
+                sched.schedule(() -> sendDone(cid), 500, TimeUnit.MILLISECONDS);
+            }
+        });
     }
 
-    private static String safe(String s) { return (s == null) ? "" : s; }
-
-    // ── standalone entry‑point ───────────────────────────────────────────────
     public static void main(String[] args) throws Exception {
         int port = (args.length > 0) ? Integer.parseInt(args[0]) : 9999;
         MutexAdapter adapter = new MutexAdapter();
         Reporter reporter = new Reporter(adapter, port);
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> adapter.sched.shutdownNow()));
+        
+        Runtime.getRuntime().addShutdownHook(
+            new Thread(() -> {
+                System.out.println("Shutting down...");
+                adapter.sched.shutdownNow();
+            })
+        );
+        
+        System.out.println("Listening on port " + port);
+        System.out.println("Flask server: " + adapter.base);
         reporter.join();
     }
 }
