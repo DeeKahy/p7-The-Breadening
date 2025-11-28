@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+broadcast chan request;
+int sender;
+int reciever;
+int type;
+bool reserved;
+
+int CHECK = 0;
+int ANSWER = 1;
+int SHUT_UP = 2;
+int ELECTED = 3;
+</declaration>
+	<template>
+		<name x="5" y="5">Template</name>
+		<parameter>const int id, const int N</parameter>
+		<declaration>// Place local declarations here.
+clock x;
+
+int processes[N] = {0,1,2,3,4};
+int next_index;
+
+int recieved_from_id;
+int recieved_request_type;
+
+int leader = -1;
+bool shut_up = false;
+
+void my_index() {
+    int i;
+    for(i=0; i&lt;N; i++) {
+        if(processes[i] == id) {
+            next_index = i+1;
+        }
+    }
+}
+</declaration>
+		<location id="id0" x="-68" y="-8">
+			<name x="-60" y="-41">Idle</name>
+		</location>
+		<location id="id1" x="289" y="-8">
+			<name x="306" y="-8">Requested</name>
+			<label kind="invariant" x="306" y="8">x &lt;= 1</label>
+			<committed/>
+		</location>
+		<location id="id2" x="824" y="102">
+			<name x="833" y="76">Electing</name>
+		</location>
+		<location id="id3" x="883" y="246">
+		</location>
+		<location id="id4" x="1411" y="102">
+			<name x="1377" y="119">Elected</name>
+			<label kind="invariant" x="1376" y="136">x &lt;= 1</label>
+		</location>
+		<location id="id5" x="1538" y="102">
+		</location>
+		<location id="id6" x="1411" y="-119">
+			<name x="1419" y="-144">Leader</name>
+		</location>
+		<location id="id7" x="-442" y="-8">
+			<name x="-501" y="-17">Check</name>
+		</location>
+		<location id="id8" x="-280" y="-8">
+			<urgent/>
+		</location>
+		<location id="id9" x="824" y="-527">
+			<name x="815" y="-578">Answer</name>
+			<label kind="invariant" x="815" y="-561">x &lt;= 25</label>
+		</location>
+		<location id="id10" x="1411" y="-527">
+		</location>
+		<location id="id11" x="620" y="102">
+		</location>
+		<location id="id12" x="1232" y="34">
+		</location>
+		<location id="id13" x="824" y="-119">
+			<name x="714" y="-110">Leader_Requested</name>
+			<label kind="invariant" x="799" y="-93">x &lt;= 1</label>
+			<committed/>
+		</location>
+		<location id="id14" x="289" y="102">
+			<name x="246" y="110">Shut_Up</name>
+			<label kind="invariant" x="246" y="127">x &lt;= 1</label>
+			<committed/>
+		</location>
+		<init ref="id0"/>
+		<transition id="id15">
+			<source ref="id1"/>
+			<target ref="id14"/>
+			<label kind="guard" x="289" y="34">recieved_request_type != ELECTED &amp;&amp;
+recieved_request_type != ANSWER</label>
+			<label kind="assignment" x="289" y="47">x = 0</label>
+		</transition>
+		<transition id="id16">
+			<source ref="id13"/>
+			<target ref="id10"/>
+			<label kind="guard" x="1062" y="-289">recieved_request_type == CHECK &amp;&amp;
+not reserved</label>
+			<label kind="assignment" x="1062" y="-255">type = ANSWER,
+reciever = recieved_from_id,
+sender = id,
+reserved = true</label>
+		</transition>
+		<transition id="id17">
+			<source ref="id9"/>
+			<target ref="id13"/>
+			<label kind="guard" x="501" y="-391">reciever == id</label>
+			<label kind="synchronisation" x="501" y="-374">request?</label>
+			<label kind="assignment" x="501" y="-357">recieved_from_id = sender,
+recieved_request_type = type,
+x = 0</label>
+			<nail x="756" y="-331"/>
+		</transition>
+		<transition id="id18">
+			<source ref="id1"/>
+			<target ref="id1"/>
+			<label kind="guard" x="340" y="-153">reciever == id</label>
+			<label kind="synchronisation" x="340" y="-136">request?</label>
+			<label kind="assignment" x="340" y="-119">recieved_from_id = sender,
+recieved_request_type = type,
+x = 0</label>
+			<nail x="357" y="-42"/>
+			<nail x="314" y="-68"/>
+		</transition>
+		<transition id="id19">
+			<source ref="id13"/>
+			<target ref="id1"/>
+			<label kind="guard" x="561" y="-68">recieved_request_type != CHECK</label>
+			<label kind="assignment" x="561" y="-59">x = 0</label>
+		</transition>
+		<transition id="id20">
+			<source ref="id12"/>
+			<target ref="id4"/>
+			<label kind="synchronisation" x="1096" y="42">request!</label>
+			<label kind="assignment" x="1096" y="59">reserved = false,
+x = 0</label>
+			<nail x="1249" y="76"/>
+		</transition>
+		<transition id="id21">
+			<source ref="id4"/>
+			<target ref="id12"/>
+			<label kind="guard" x="1156" y="-93">reciever == id</label>
+			<label kind="synchronisation" x="1156" y="-76">request?</label>
+			<label kind="assignment" x="1156" y="-59">type = ELECTED, 
+reciever = sender,
+sender = id,
+reserved = true</label>
+			<nail x="1309" y="34"/>
+		</transition>
+		<transition id="id22">
+			<source ref="id14"/>
+			<target ref="id11"/>
+			<label kind="guard" x="314" y="102">not reserved &amp;&amp;
+id &gt; recieved_from_id &amp;&amp;
+not shut_up</label>
+			<label kind="assignment" x="314" y="161">type = SHUT_UP,
+reciever = recieved_from_id,
+sender = id,
+reserved = true</label>
+			<nail x="442" y="102"/>
+			<nail x="450" y="102"/>
+		</transition>
+		<transition id="id23">
+			<source ref="id14"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-59" y="102">recieved_from_id &gt; id || shut_up</label>
+			<label kind="assignment" x="-59" y="119">shut_up = true,
+leader = -1</label>
+			<nail x="221" y="102"/>
+			<nail x="221" y="102"/>
+			<nail x="-68" y="102"/>
+		</transition>
+		<transition id="id24">
+			<source ref="id11"/>
+			<target ref="id2"/>
+			<label kind="synchronisation" x="637" y="102">request!</label>
+			<label kind="assignment" x="637" y="119">reserved = false,
+x = 0</label>
+		</transition>
+		<transition id="id25">
+			<source ref="id7"/>
+			<target ref="id2"/>
+			<label kind="guard" x="0" y="280">x &gt; 20</label>
+			<label kind="assignment" x="0" y="297">x = 0</label>
+			<nail x="-442" y="280"/>
+			<nail x="739" y="280"/>
+		</transition>
+		<transition id="id26">
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-59" y="-178">recieved_request_type == ANSWER</label>
+			<nail x="221" y="-178"/>
+			<nail x="-68" y="-178"/>
+		</transition>
+		<transition id="id27">
+			<source ref="id7"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-297" y="-289">reciever == id</label>
+			<label kind="synchronisation" x="-297" y="-272">request ?</label>
+			<label kind="assignment" x="-297" y="-255">recieved_from_id = sender,
+recieved_request_type = type,
+x = 0</label>
+			<nail x="-442" y="-195"/>
+			<nail x="289" y="-195"/>
+		</transition>
+		<transition id="id28">
+			<source ref="id10"/>
+			<target ref="id6"/>
+			<label kind="synchronisation" x="1420" y="-357">request!</label>
+			<label kind="assignment" x="1419" y="-340">reserved = false</label>
+		</transition>
+		<transition id="id29">
+			<source ref="id9"/>
+			<target ref="id10"/>
+			<label kind="guard" x="909" y="-629">not reserved</label>
+			<label kind="assignment" x="909" y="-612">type = ANSWER,
+reciever = recieved_from_id,
+sender = id,
+reserved = true</label>
+		</transition>
+		<transition id="id30">
+			<source ref="id13"/>
+			<target ref="id9"/>
+			<label kind="guard" x="824" y="-357">recieved_request_type == CHECK</label>
+		</transition>
+		<transition id="id31">
+			<source ref="id6"/>
+			<target ref="id13"/>
+			<label kind="guard" x="858" y="-119">reciever == id</label>
+			<label kind="synchronisation" x="858" y="-102">request?</label>
+			<label kind="assignment" x="858" y="-85">recieved_from_id = sender,
+recieved_request_type = type,
+x = 0</label>
+			<nail x="1403" y="-119"/>
+		</transition>
+		<transition id="id32">
+			<source ref="id5"/>
+			<target ref="id4"/>
+			<label kind="guard" x="1555" y="76">processes[next_index] == id</label>
+			<label kind="assignment" x="1555" y="93">reserved = false,
+next_index += 1,
+x = 0</label>
+			<nail x="1538" y="119"/>
+			<nail x="1538" y="110"/>
+			<nail x="1538" y="136"/>
+			<nail x="1470" y="135"/>
+			<nail x="1428" y="110"/>
+		</transition>
+		<transition id="id33">
+			<source ref="id2"/>
+			<target ref="id1"/>
+			<label kind="guard" x="569" y="-17">reciever == id</label>
+			<label kind="synchronisation" x="569" y="0">request?</label>
+			<label kind="assignment" x="569" y="17">recieved_from_id = sender,
+recieved_request_type = type,
+x = 0</label>
+			<nail x="824" y="-17"/>
+		</transition>
+		<transition id="id34">
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="guard" x="17" y="-136">reciever == id</label>
+			<label kind="synchronisation" x="17" y="-119">request?</label>
+			<label kind="assignment" x="17" y="-102">recieved_from_id = sender,
+recieved_request_type = type,
+my_index(),
+x = 0</label>
+			<nail x="119" y="-42"/>
+		</transition>
+		<transition id="id35">
+			<source ref="id8"/>
+			<target ref="id7"/>
+			<label kind="synchronisation" x="-425" y="-68">request!</label>
+			<label kind="assignment" x="-425" y="-51">reserved = false,
+x = 0</label>
+		</transition>
+		<transition id="id36">
+			<source ref="id0"/>
+			<target ref="id8"/>
+			<label kind="guard" x="-255" y="-161">x &gt; 30 &amp;&amp;
+not reserved &amp;&amp;
+not shut_up</label>
+			<label kind="assignment" x="-255" y="-110">type = CHECK,
+reciever = leader,
+sender = id,
+reserved = true,
+my_index()</label>
+		</transition>
+		<transition id="id37">
+			<source ref="id4"/>
+			<target ref="id6"/>
+			<label kind="guard" x="1420" y="-93">next_index &gt;= N</label>
+			<label kind="assignment" x="1420" y="-76">my_index(),
+leader = id</label>
+		</transition>
+		<transition id="id38">
+			<source ref="id5"/>
+			<target ref="id4"/>
+			<label kind="guard" x="1436" y="153">processes[next_index] != id</label>
+			<label kind="synchronisation" x="1436" y="170">request!</label>
+			<label kind="assignment" x="1436" y="187">reserved = false,
+next_index += 1,
+x = 0</label>
+			<nail x="1470" y="136"/>
+		</transition>
+		<transition id="id39">
+			<source ref="id4"/>
+			<target ref="id5"/>
+			<label kind="guard" x="1488" y="-42">not reserved &amp;&amp;
+next_index &lt; N</label>
+			<label kind="assignment" x="1488" y="0">type = ELECTED, 
+reciever = processes[next_index],
+sender = id,
+reserved = true</label>
+			<nail x="1470" y="76"/>
+		</transition>
+		<transition id="id40">
+			<source ref="id2"/>
+			<target ref="id4"/>
+			<label kind="guard" x="935" y="102">(reciever != id &amp;&amp; not reserved) &amp;&amp;
+next_index &gt;=N &amp;&amp;
+x &gt; 20</label>
+			<label kind="assignment" x="935" y="153">next_index = 0,
+x = 0</label>
+			<nail x="875" y="102"/>
+		</transition>
+		<transition id="id41">
+			<source ref="id3"/>
+			<target ref="id2"/>
+			<label kind="synchronisation" x="790" y="255">request!</label>
+			<label kind="assignment" x="790" y="272">reserved = false,
+x = 0</label>
+			<nail x="824" y="246"/>
+		</transition>
+		<transition id="id42">
+			<source ref="id2"/>
+			<target ref="id3"/>
+			<label kind="guard" x="960" y="246">not reserved &amp;&amp; next_index &lt; N</label>
+			<label kind="assignment" x="960" y="263">type = SHUT_UP,
+reciever = processes[next_index],
+sender = id,
+next_index += 1,
+reserved = true</label>
+			<nail x="960" y="246"/>
+			<nail x="926" y="246"/>
+		</transition>
+		<transition id="id43">
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="guard" x="0" y="16">recieved_request_type == ELECTED</label>
+			<label kind="assignment" x="0" y="34">leader = recieved_from_id,
+shut_up = false,
+my_index()</label>
+			<nail x="127" y="17"/>
+			<nail x="119" y="17"/>
+		</transition>
+	</template>
+	<system>// Place template instantiations here.
+P0 = Template(0, 5);
+P1 = Template(1, 5);
+P2 = Template(2, 5);
+P3 = Template(3, 5);
+P4 = Template(4, 5);
+// List one or more processes to be composed into a system.
+system P0, P1, P2, P3, P4;
+</system>
+	<queries>
+		<query>
+			<formula>A[] not deadlock</formula>
+			<comment/>
+			<option key="--diagnostic" value="1"/>
+			<result outcome="success" type="quality" timestamp="2025-11-27 11:16:29 +0100">
+				<option key="--diagnostic" value="1"/>
+			</result>
+		</query>
+	</queries>
+</nta>
