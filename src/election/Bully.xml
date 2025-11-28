@@ -14,7 +14,7 @@ int SHUT_UP = 2;
 int ELECTED = 3;
 </declaration>
 	<template>
-		<name x="5" y="5">Template</name>
+		<name x="5" y="5">Process</name>
 		<parameter>const int id, const int N</parameter>
 		<declaration>// Place local declarations here.
 clock x;
@@ -35,8 +35,7 @@ void my_index() {
             next_index = i+1;
         }
     }
-}
-</declaration>
+}</declaration>
 		<location id="id0" x="-68" y="-8">
 			<name x="-60" y="-41">Idle</name>
 		</location>
@@ -49,12 +48,14 @@ void my_index() {
 			<name x="833" y="76">Electing</name>
 		</location>
 		<location id="id3" x="883" y="246">
+			<committed/>
 		</location>
 		<location id="id4" x="1411" y="102">
 			<name x="1377" y="119">Elected</name>
 			<label kind="invariant" x="1376" y="136">x &lt;= 1</label>
 		</location>
 		<location id="id5" x="1538" y="102">
+			<committed/>
 		</location>
 		<location id="id6" x="1411" y="-119">
 			<name x="1419" y="-144">Leader</name>
@@ -63,17 +64,20 @@ void my_index() {
 			<name x="-501" y="-17">Check</name>
 		</location>
 		<location id="id8" x="-280" y="-8">
-			<urgent/>
+			<committed/>
 		</location>
 		<location id="id9" x="824" y="-527">
 			<name x="815" y="-578">Answer</name>
 			<label kind="invariant" x="815" y="-561">x &lt;= 25</label>
 		</location>
 		<location id="id10" x="1411" y="-527">
+			<committed/>
 		</location>
 		<location id="id11" x="620" y="102">
+			<committed/>
 		</location>
 		<location id="id12" x="1232" y="34">
+			<committed/>
 		</location>
 		<location id="id13" x="824" y="-119">
 			<name x="714" y="-110">Leader_Requested</name>
@@ -358,11 +362,11 @@ my_index()</label>
 		</transition>
 	</template>
 	<system>// Place template instantiations here.
-P0 = Template(0, 5);
-P1 = Template(1, 5);
-P2 = Template(2, 5);
-P3 = Template(3, 5);
-P4 = Template(4, 5);
+P0 = Process(0, 5);
+P1 = Process(1, 5);
+P2 = Process(2, 5);
+P3 = Process(3, 5);
+P4 = Process(4, 5);
 // List one or more processes to be composed into a system.
 system P0, P1, P2, P3, P4;
 </system>
@@ -371,8 +375,14 @@ system P0, P1, P2, P3, P4;
 			<formula>A[] not deadlock</formula>
 			<comment/>
 			<option key="--diagnostic" value="1"/>
-			<result outcome="success" type="quality" timestamp="2025-11-27 11:16:29 +0100">
+			<result outcome="success" type="quality" timestamp="2025-11-28 10:23:14 +0100">
 				<option key="--diagnostic" value="1"/>
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (P0.x &lt; 90000)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-11-28 10:23:17 +0100">
 			</result>
 		</query>
 	</queries>
