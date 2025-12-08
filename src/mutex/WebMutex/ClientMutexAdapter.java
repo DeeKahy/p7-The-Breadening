@@ -13,9 +13,9 @@ import java.util.concurrent.*;
 
 /**
  * Adapter that maps the three channels of the UPPAAL‑TRON model
- *   request(id)  →  GET /api/requesting/{id}   Output
- *   grant(id)    ←  HTTP 200 "okay go …"       Input
- *   done(id)     →  GET /api/returning/{id}    Output
+ *   request(id)  →  GET /api/requesting/{id}
+ *   grant(id)    ←  HTTP 200 "okay go …"
+ *   done(id)     →  GET /api/returning/{id}
  *
  * Updated to handle all Flask server status codes:
  *   - 200: proceed / returned
