@@ -13,9 +13,9 @@ import java.util.concurrent.*;
 
 /**
  * Adapter that maps the three channels of the UPPAAL‑TRON model
- *   request(id)  →  GET /api/requesting/{id}
- *   grant(id)    ←  HTTP 200 "okay go …"
- *   done(id)     →  GET /api/returning/{id}
+ *   request(id)  →  GET /api/requesting/{id}   Output
+ *   grant(id)    ←  HTTP 200 "okay go …"       Input
+ *   done(id)     →  GET /api/returning/{id}    Output
  *
  * Updated to handle all Flask server status codes:
  *   - 200: proceed / returned
@@ -25,7 +25,7 @@ import java.util.concurrent.*;
  *   - 423: not_your_turn
  *   - 500: queue_empty_error
  */
-public class MutexAdapter implements Adapter {
+public class ClientMutexAdapter implements Adapter {
 
     // ── TRON channel identifiers ────────────────────────────────────────────
     private int IN_REQUEST; // request?
@@ -258,7 +258,7 @@ public class MutexAdapter implements Adapter {
     // ── standalone entry‑point ───────────────────────────────────────────────
     public static void main(String[] args) throws Exception {
         int port = (args.length > 0) ? Integer.parseInt(args[0]) : 9999;
-        MutexAdapter adapter = new MutexAdapter();
+        ClientMutexAdapter adapter = new ClientMutexAdapter();
         Reporter reporter = new Reporter(adapter, port);
         Runtime.getRuntime().addShutdownHook(
             new Thread(() -> adapter.sched.shutdownNow())
