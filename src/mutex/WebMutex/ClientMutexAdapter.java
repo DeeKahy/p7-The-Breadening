@@ -28,9 +28,9 @@ import java.util.concurrent.*;
 public class ClientMutexAdapter implements Adapter {
 
     // ── TRON channel identifiers ────────────────────────────────────────────
-    private int IN_REQUEST; // request?
-    private int IN_DONE; // done?
-    private int OUT_GRANT; // grant!
+    private int OUT_REQUEST; // request?
+    private int OUT_DONE; // done?
+    private int IN_GRANT; // grant!
 
     private Reporter reporter;
 
@@ -58,14 +58,14 @@ public class ClientMutexAdapter implements Adapter {
         reporter.setTimeout(1_000_000); // test budget: 100 s
 
         // Bind existing *global* int variables – not the template constant `id`!
-        IN_REQUEST = reporter.addInput("request");
-        reporter.addVarToInput(IN_REQUEST, "requesting_c_id");
+        OUT_REQUEST = reporter.addOutput("request");
+        reporter.addVarToOutput(OUT_REQUEST, "c_id"); //variable skal muligvis ændres
 
-        IN_DONE = reporter.addInput("done");
-        reporter.addVarToInput(IN_DONE, "granted_c_id");
+        OUT_DONE = reporter.addOutput("done");
+        reporter.addVarToOutput(OUT_DONE, "c_id");       //variable skal muligvis ændres
 
-        OUT_GRANT = reporter.addOutput("grant");
-        reporter.addVarToOutput(OUT_GRANT, "granted_c_id");
+        IN_GRANT = reporter.addInput("grant");
+        reporter.addVarToInput(IN_GRANT, "c_id");      //variable skal muligvis ændres
     }
 
     @Override
@@ -73,14 +73,14 @@ public class ClientMutexAdapter implements Adapter {
         // every bound channel carries ONE integer parameter – the client id
         int cid = params[0];
 
-        if (chan == IN_REQUEST) {
+        if (chan == OUT_REQUEST) {
             System.out.println(
-                "[ADAPTER] perform: request(" + cid + ") - calling pollRequest"
+                "[CLIENT ADAPTER] perform: request(" + cid + ") - calling pollRequest"
             );
             pollRequest(cid);
-        } else if (chan == IN_DONE) {
+        } else if (chan == OUT_DONE) {
             System.out.println(
-                "[ADAPTER] perform: done(" + cid + ") - calling sendDone"
+                "[CLIENT ADAPTER] perform: done(" + cid + ") - calling sendDone"
             );
             sendDone(cid);
         }
@@ -104,7 +104,7 @@ public class ClientMutexAdapter implements Adapter {
                 int status = resp.statusCode();
 
                 System.out.println(
-                    "[ADAPTER] pollRequest(" +
+                    "[CLIENT ADAPTER] pollRequest(" +
                         cid +
                         ") received status " +
                         status +
@@ -116,11 +116,11 @@ public class ClientMutexAdapter implements Adapter {
                 switch (status) {
                     case 200: // proceed - grant access
                         System.out.println(
-                            "[ADAPTER] Reporting grant(" + cid + ") to TRON"
+                            "[CLIENT ADAPTER] Reporting grant(" + cid + ") to TRON"
                         );
-                        reporter.report(OUT_GRANT, new int[] { cid });
+                        reporter.report(IN_GRANT, new int[] { cid });
                         System.out.println(
-                            "[ADAPTER] Grant(" + cid + ") reported successfully"
+                            "[CLIENT ADAPTER] Grant(" + cid + ") reported successfully"
                         );
                         break;
                     case 202: // queued - keep polling
@@ -183,7 +183,7 @@ public class ClientMutexAdapter implements Adapter {
                                     .replace("\"", "");
                                 int nextId = Integer.parseInt(nextStr);
                                 reporter.report(
-                                    OUT_GRANT,
+                                    IN_GRANT,
                                     new int[] { nextId }
                                 );
                             }
