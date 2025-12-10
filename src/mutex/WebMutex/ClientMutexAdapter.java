@@ -59,13 +59,13 @@ public class ClientMutexAdapter implements Adapter {
 
         // Bind existing *global* int variables – not the template constant `id`!
         OUT_REQUEST = reporter.addOutput("request");
-        reporter.addVarToOutput(OUT_REQUEST, "c_id"); //variable skal muligvis ændres
+        reporter.addVarToOutput(OUT_REQUEST, "requesting_c_id"); //variable skal muligvis ændres
 
         OUT_DONE = reporter.addOutput("done");
-        reporter.addVarToOutput(OUT_DONE, "c_id");       //variable skal muligvis ændres
+        reporter.addVarToOutput(OUT_DONE, "requesting_c_id");       //variable skal muligvis ændres
 
         IN_GRANT = reporter.addInput("grant");
-        reporter.addVarToInput(IN_GRANT, "c_id");      //variable skal muligvis ændres
+        reporter.addVarToInput(IN_GRANT, "requesting_c_id");      //variable skal muligvis ændres
     }
 
     @Override
