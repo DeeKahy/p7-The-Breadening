@@ -59,196 +59,63 @@ public class ClientMutexAdapter implements Adapter {
 
         // Bind existing *global* int variables – not the template constant `id`!
         OUT_REQUEST = reporter.addOutput("request");
-        reporter.addVarToOutput(OUT_REQUEST, "requesting_c_id"); //variable skal muligvis ændres
-
+        reporter.addVarToOutput(OUT_REQUEST, "requesting_c_id"); 
         OUT_DONE = reporter.addOutput("done");
-        reporter.addVarToOutput(OUT_DONE, "requesting_c_id");       //variable skal muligvis ændres
-
+        reporter.addVarToOutput(OUT_DONE, "requesting_c_id");
         IN_GRANT = reporter.addInput("grant");
-        reporter.addVarToInput(IN_GRANT, "requesting_c_id");      //variable skal muligvis ændres
+        reporter.addVarToInput(IN_GRANT, "requesting_c_id"); 
     }
 
-    @Override
+    @override
     public void perform(int chan, int[] params) {
         // every bound channel carries ONE integer parameter – the client id
         int cid = params[0];
 
-        if (chan == OUT_REQUEST) {
-            System.out.println(
-                "[CLIENT ADAPTER] perform: request(" + cid + ") - calling pollRequest"
-            );
-            pollRequest(cid);
-        } else if (chan == OUT_DONE) {
-            System.out.println(
-                "[CLIENT ADAPTER] perform: done(" + cid + ") - calling sendDone"
-            );
-            sendDone(cid);
+        if (chan == IN_GRANT) {
+            sendGrant();
         }
     }
 
-    // ── request → (poll) → grant loop ───────────────────────────────────────
-    private void pollRequest(int cid) {
-        long startTime = System.nanoTime();
-        HttpRequest req = HttpRequest.newBuilder(
-            base.resolve("/api/requesting/" + cid)
-        )
-            .timeout(reqTimeout)
-            .GET()
-            .build();
+    private void handleRequest(HttpExchange exchange) throws IOException {
+        String body = readAll(exchange.getRequestBody());
 
-        http
-            .sendAsync(req, HttpResponse.BodyHandlers.ofString())
-            .thenAccept(resp -> {
-                long endTime = System.nanoTime();
-                long elapsedMs = (endTime - startTime) / 1_000_000;
-                int status = resp.statusCode();
+        /**
+        Extract values from body here.
+        **/
 
-                System.out.println(
-                    "[CLIENT ADAPTER] pollRequest(" +
-                        cid +
-                        ") received status " +
-                        status +
-                        " after " +
-                        elapsedMs +
-                        "ms"
-                );
+        // Report this as an output event: request(sender, receiver, type)
+        if (reporter != null) {
+            reporter.report(
+                OUT_REQUEST,
+                new int[] { /**Input your extracted values here**/ }
+            );
+        } else {
+            System.err.println("[ADAPTER] Reporter is null; cannot report");
+        }
 
-                switch (status) {
-                    case 200: // proceed - grant access
-                        System.out.println(
-                            "[CLIENT ADAPTER] Reporting grant(" + cid + ") to TRON"
-                        );
-                        reporter.report(IN_GRANT, new int[] { cid });
-                        System.out.println(
-                            "[CLIENT ADAPTER] Grant(" + cid + ") reported successfully"
-                        );
-                        break;
-                    case 202: // queued - keep polling
-                    case 409: // already_in_queue - keep polling
-                        sched.schedule(
-                            () -> pollRequest(cid),
-                            50,
-                            TimeUnit.MILLISECONDS
-                        );
-                        break;
-                    default:
-                        System.err.println(
-                            "Unexpected status " +
-                                status +
-                                " for request(" +
-                                cid +
-                                "): " +
-                                resp.body()
-                        );
-                        sched.schedule(
-                            () -> pollRequest(cid),
-                            2,
-                            TimeUnit.SECONDS
-                        );
-                }
-            })
-            .exceptionally(ex -> {
-                System.err.println(
-                    "Request failed for client " + cid + ": " + ex.getMessage()
-                );
-                sched.schedule(() -> pollRequest(cid), 2, TimeUnit.SECONDS);
-                return null;
-            });
+        // Respond to the original sender
+        sendResponse(exchange, 200, "{\"status\":\"ok\"}");
     }
 
-    // ── done → (maybe retry) ────────────────────────────────────────────────
-    private void sendDone(int cid) {
-        HttpRequest req = HttpRequest.newBuilder(
-            base.resolve("/api/returning/" + cid)
-        )
-            .timeout(reqTimeout)
-            .GET()
-            .build();
+    private void handleDone(HttpExchange exchange) throws IOException {
+        String body = readAll(exchange.getRequestBody());
 
-        http
-            .sendAsync(req, HttpResponse.BodyHandlers.ofString())
-            .thenAccept(resp -> {
-                int status = resp.statusCode();
-                String body = safe(resp.body());
+        /**
+        Extract values from body here.
+        **/
 
-                switch (status) {
-                    case 200: // returned - grant next client if present
-                        try {
-                            // Parse JSON response to get "next" field
-                            if (body.contains("\"next\"")) {
-                                String nextStr = body
-                                    .split("\"next\"")[1].split(":")[1].split(
-                                        "[,}]"
-                                    )[0].trim()
-                                    .replace("\"", "");
-                                int nextId = Integer.parseInt(nextStr);
-                                reporter.report(
-                                    IN_GRANT,
-                                    new int[] { nextId }
-                                );
-                            }
-                        } catch (Exception e) {
-                            System.err.println(
-                                "Failed to parse next client from: " + body
-                            );
-                        }
-                        break;
-                    case 204: // queue_empty - nothing to do
-                        // Successfully returned, queue is now empty
-                        break;
-                    case 409: // not_in_queue - unexpected, retry
-                        System.err.println(
-                            "Client " + cid + " not in queue on return"
-                        );
-                        sched.schedule(
-                            () -> sendDone(cid),
-                            3,
-                            TimeUnit.SECONDS
-                        );
-                        break;
-                    case 423: // not_your_turn - unexpected, retry
-                        System.err.println(
-                            "Not client " + cid + "'s turn to return"
-                        );
-                        sched.schedule(
-                            () -> sendDone(cid),
-                            3,
-                            TimeUnit.SECONDS
-                        );
-                        break;
-                    case 500: // queue_empty_error - serious issue, retry
-                        System.err.println(
-                            "Server error (queue empty) for client " + cid
-                        );
-                        sched.schedule(
-                            () -> sendDone(cid),
-                            5,
-                            TimeUnit.SECONDS
-                        );
-                        break;
-                    default:
-                        System.err.println(
-                            "Unexpected status " +
-                                status +
-                                " for done(" +
-                                cid +
-                                "): " +
-                                body
-                        );
-                        sched.schedule(
-                            () -> sendDone(cid),
-                            5,
-                            TimeUnit.SECONDS
-                        );
-                }
-            })
-            .exceptionally(ex -> {
-                System.err.println(
-                    "Done failed for client " + cid + ": " + ex.getMessage()
-                );
-                sched.schedule(() -> sendDone(cid), 5, TimeUnit.SECONDS);
-                return null;
-            });
+        // Report this as an output event: request(sender, receiver, type)
+        if (reporter != null) {
+            reporter.report(
+                OUT_REQUEST,
+                new int[] { /**Input your extracted values here**/ }
+            );
+        } else {
+            System.err.println("[ADAPTER] Reporter is null; cannot report");
+        }
+
+        // Respond to the original sender
+        sendResponse(exchange, 200, "{\"status\":\"ok\"}");
     }
 
     private static String safe(String s) {
