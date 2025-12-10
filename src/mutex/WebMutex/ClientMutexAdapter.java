@@ -11,6 +11,13 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.*;
 
+import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpExchange;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+
+
 /**
  * Adapter that maps the three channels of the UPPAAL‑TRON model
  *   request(id)  →  GET /api/requesting/{id}   Output
@@ -31,6 +38,10 @@ public class ClientMutexAdapter implements Adapter {
     private int OUT_REQUEST; // request?
     private int OUT_DONE; // done?
     private int IN_GRANT; // grant!
+
+    private HttpServer ingressServer;
+    private final int adapterPort = Integer.getInteger("Port", 6000);
+
 
     private Reporter reporter;
 
@@ -66,14 +77,31 @@ public class ClientMutexAdapter implements Adapter {
         reporter.addVarToInput(IN_GRANT, "requesting_c_id"); 
     }
 
-    @override
+    private void startIngressServer() throws IOException {
+        ingressServer = HttpServer.create(new InetSocketAddress(adapterPort), 0);
+
+        ingressServer.createContext("/api/request", this::handleRequest);
+        ingressServer.createContext("/api/returning", this::handleDone);
+
+        ingressServer.setExecutor(Executors.newCachedThreadPool());
+        ingressServer.start();
+
+        System.out.println(
+            "[ADAPTER] Ingress server listening on http://0.0.0.0:" +
+            adapterPort + "/api/request"
+        );
+    }
+
+
+
+    @Override
     public void perform(int chan, int[] params) {
         // every bound channel carries ONE integer parameter – the client id
         int cid = params[0];
-
+/* 
         if (chan == IN_GRANT) {
-            sendGrant();
-        }
+            handleRequest();
+        }*/
     }
 
     private void handleRequest(HttpExchange exchange) throws IOException {
@@ -108,7 +136,7 @@ public class ClientMutexAdapter implements Adapter {
         if (reporter != null) {
             reporter.report(
                 OUT_REQUEST,
-                new int[] { /**Input your extracted values here**/ }
+                new int[] { request(sender, receiver, type) }
             );
         } else {
             System.err.println("[ADAPTER] Reporter is null; cannot report");
@@ -130,6 +158,7 @@ public class ClientMutexAdapter implements Adapter {
         Runtime.getRuntime().addShutdownHook(
             new Thread(() -> adapter.sched.shutdownNow())
         );
+        adapter.startIngressServer();
         reporter.join();
     }
 }
