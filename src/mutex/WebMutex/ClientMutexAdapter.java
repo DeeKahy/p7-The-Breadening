@@ -35,9 +35,9 @@ import java.net.InetSocketAddress;
 public class ClientMutexAdapter implements Adapter {
 
     // ── TRON channel identifiers ────────────────────────────────────────────
-    private int OUT_REQUEST; // request?
-    private int OUT_DONE; // done?
-    private int IN_GRANT; // grant!
+    private int OUT_REQUEST;    // request?
+    private int OUT_DONE;       // done?
+    private int IN_GRANT;       // grant!
 
     private HttpServer ingressServer;
     private final int adapterPort = Integer.getInteger("Port", 6000);
@@ -94,73 +94,41 @@ public class ClientMutexAdapter implements Adapter {
 
     @Override
     public void perform(int chan, int[] params) {
-        int cid = params[0]; // client id
+        // every bound channel carries ONE integer parameter – the client id
+        int cid = params[0];
 
-        if (chan == OUT_REQUEST) { // someone in TRON wants to request
-            // Send request to Flask server asynchronously
-            sched.execute(() -> {
-                try {
-                    URI requestUri = URI.create(base + "/api/requesting/" + cid);
-                    HttpRequest request = HttpRequest.newBuilder()
-                            .uri(requestUri)
-                            .timeout(reqTimeout)
-                            .GET()
-                            .build();
-
-                    HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-                    int status = response.statusCode();
-                    String body = response.body();
-
-                    System.out.println("[ADAPTER] Client " + cid + " requested → " + body + " (" + status + ")");
-
-                    // Grant access if status 200
-                    if (status == 200) {
-                        reporter.report(IN_GRANT, new int[]{cid});
-                        System.out.println("[ADAPTER] Granting client " + cid);
-                    } else if (status == 202) {
-                        // queued: optionally retry after delay
-                        sched.schedule(() -> perform(chan, params), 2, TimeUnit.SECONDS);
-                    } else {
-                        System.err.println("[ADAPTER] Request failed for client " + cid + ": " + status);
-                    }
-                } catch (Exception e) {
-                    System.err.println("[ADAPTER] Error during request for client " + cid + ": " + e.getMessage());
-                }
-            });
-        } else if (chan == OUT_DONE) { // someone in TRON signals done
-            int doneCid = params[0];
-            sched.execute(() -> {
-                try {
-                    URI doneUri = URI.create(base + "/api/returning/" + doneCid);
-                    HttpRequest request = HttpRequest.newBuilder()
-                            .uri(doneUri)
-                            .timeout(reqTimeout)
-                            .GET()
-                            .build();
-                    HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-                    System.out.println("[ADAPTER] Client " + doneCid + " returned → " + response.body());
-                } catch (Exception e) {
-                    System.err.println("[ADAPTER] Error during done for client " + doneCid + ": " + e.getMessage());
-                }
-            });
+        if (chan == IN_GRANT) {
+            sendGrant(cid);
         }
     }
 
-    private void handleRequest(HttpExchange exchange) throws IOException {
-        String body = readAll(exchange.getRequestBody());
+    private void sendGrant(int cid) {
+        sched.execute(() -> {
+        try {
+            URI grantUri = URI.create(base + "/api/grant/" + cid);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(grantUri)
+                    .timeout(reqTimeout)
+                    .GET()
+                    .build();
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            System.out.println("[ADAPTER] Sent Grant to client " + cid + " → " + response.body());
+        } catch (Exception e) {
+            System.err.println("[ADAPTER] Error sending Grant to client " + cid + ": " + e.getMessage());
+        }
+        });
+    }
 
+    private void handleRequest(HttpExchange exchange) throws IOException {
         String path = exchange.getRequestURI().getPath(); // e.g., /api/request/3
         String[] parts = path.split("/");
-        int sender = Integer.parseInt(parts[parts.length - 1]); // client requesting
-
-        int receiver = -1; // convention
-        int type = 1;      // 1 = request event
+        int sender = Integer.parseInt(parts[parts.length - 1]);
 
         // Report this as an output event: request(sender, receiver, type)
         if (reporter != null) {
             reporter.report(
                 OUT_REQUEST,
-                new int[] {sender, receiver, type}
+                new int[] {sender, -1, 1}
             );
         } else {
             System.err.println("[ADAPTER] Reporter is null; cannot report");
@@ -171,22 +139,15 @@ public class ClientMutexAdapter implements Adapter {
     }
 
     private void handleDone(HttpExchange exchange) throws IOException {
-        String body = readAll(exchange.getRequestBody());
-
-        // Extract client number from the URL
         String path = exchange.getRequestURI().getPath(); // e.g., /api/returning/3
         String[] parts = path.split("/");
-        int sender = Integer.parseInt(parts[parts.length - 1]); // client who is returning
-
-        // For "receiver" and "type" you decide a convention:
-        int receiver = -1;  // no specific receiver for done
-        int type = 0;       // 0 = done event
+        int sender = Integer.parseInt(parts[parts.length - 1]);
 
         // Report this as an output event: request(sender, receiver, type)
         if (reporter != null) {
             reporter.report(
                 OUT_DONE,
-                new int[] {sender, receiver, type}
+                new int[] {sender, -1, 0}
             );
         } else {
             System.err.println("[ADAPTER] Reporter is null; cannot report");
@@ -195,11 +156,11 @@ public class ClientMutexAdapter implements Adapter {
         // Respond to the original sender
         sendResponse(exchange, 200, "{\"status\":\"ok\"}");
     }
-
+/* 
     private static String safe(String s) {
         return (s == null) ? "" : s;
     }
-
+*/
     private String readAll(java.io.InputStream is) throws IOException {
         return new String(is.readAllBytes());
     }
