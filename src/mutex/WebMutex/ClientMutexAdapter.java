@@ -107,15 +107,18 @@ public class ClientMutexAdapter implements Adapter {
     private void handleRequest(HttpExchange exchange) throws IOException {
         String body = readAll(exchange.getRequestBody());
 
-        /**
-        Extract values from body here.
-        **/
+        String path = exchange.getRequestURI().getPath(); // e.g., /api/request/3
+        String[] parts = path.split("/");
+        int sender = Integer.parseInt(parts[parts.length - 1]); // client requesting
+
+        int receiver = -1; // convention
+        int type = 1;      // 1 = request event
 
         // Report this as an output event: request(sender, receiver, type)
         if (reporter != null) {
             reporter.report(
                 OUT_REQUEST,
-                new int[] { /**Input your extracted values here**/ }
+                new int[] {sender, receiver, type}
             );
         } else {
             System.err.println("[ADAPTER] Reporter is null; cannot report");
@@ -128,15 +131,20 @@ public class ClientMutexAdapter implements Adapter {
     private void handleDone(HttpExchange exchange) throws IOException {
         String body = readAll(exchange.getRequestBody());
 
-        /**
-        Extract values from body here.
-        **/
+        // Extract client number from the URL
+        String path = exchange.getRequestURI().getPath(); // e.g., /api/returning/3
+        String[] parts = path.split("/");
+        int sender = Integer.parseInt(parts[parts.length - 1]); // client who is returning
+
+        // For "receiver" and "type" you decide a convention:
+        int receiver = -1;  // no specific receiver for done
+        int type = 0;       // 0 = done event
 
         // Report this as an output event: request(sender, receiver, type)
         if (reporter != null) {
             reporter.report(
-                OUT_REQUEST,
-                new int[] { request(sender, receiver, type) }
+                OUT_DONE,
+                new int[] {sender, receiver, type}
             );
         } else {
             System.err.println("[ADAPTER] Reporter is null; cannot report");
@@ -148,6 +156,18 @@ public class ClientMutexAdapter implements Adapter {
 
     private static String safe(String s) {
         return (s == null) ? "" : s;
+    }
+
+    private String readAll(java.io.InputStream is) throws IOException {
+        return new String(is.readAllBytes());
+    }
+
+    private void sendResponse(HttpExchange exchange, int status, String body) throws IOException {
+        byte[] bytes = body.getBytes();
+        exchange.sendResponseHeaders(status, bytes.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(bytes);
+        }
     }
 
     // ── standalone entry‑point ───────────────────────────────────────────────
