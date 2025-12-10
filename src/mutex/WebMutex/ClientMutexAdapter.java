@@ -92,17 +92,61 @@ public class ClientMutexAdapter implements Adapter {
         );
     }
 
-
-
     @Override
     public void perform(int chan, int[] params) {
-        // every bound channel carries ONE integer parameter – the client id
-        int cid = params[0];
-/* 
-        if (chan == IN_GRANT) {
-            handleRequest();
-        }*/
+        int cid = params[0]; // client id
+
+        if (chan == OUT_REQUEST) { // someone in TRON wants to request
+            // Send request to Flask server asynchronously
+            sched.execute(() -> {
+                try {
+                    URI requestUri = URI.create(base + "/api/requesting/" + cid);
+                    HttpRequest request = HttpRequest.newBuilder()
+                            .uri(requestUri)
+                            .timeout(reqTimeout)
+                            .GET()
+                            .build();
+
+                    HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+                    int status = response.statusCode();
+                    String body = response.body();
+
+                    System.out.println("[ADAPTER] Client " + cid + " requested → " + body + " (" + status + ")");
+
+                    // Grant access if status 200
+                    if (status == 200) {
+                        reporter.report(IN_GRANT, new int[]{cid});
+                        System.out.println("[ADAPTER] Granting client " + cid);
+                    } else if (status == 202) {
+                        // queued: optionally retry after delay
+                        sched.schedule(() -> perform(chan, params), 2, TimeUnit.SECONDS);
+                    } else {
+                        System.err.println("[ADAPTER] Request failed for client " + cid + ": " + status);
+                    }
+                } catch (Exception e) {
+                    System.err.println("[ADAPTER] Error during request for client " + cid + ": " + e.getMessage());
+                }
+            });
+        } else if (chan == OUT_DONE) { // someone in TRON signals done
+            int doneCid = params[0];
+            sched.execute(() -> {
+                try {
+                    URI doneUri = URI.create(base + "/api/returning/" + doneCid);
+                    HttpRequest request = HttpRequest.newBuilder()
+                            .uri(doneUri)
+                            .timeout(reqTimeout)
+                            .GET()
+                            .build();
+                    HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+                    System.out.println("[ADAPTER] Client " + doneCid + " returned → " + response.body());
+                } catch (Exception e) {
+                    System.err.println("[ADAPTER] Error during done for client " + doneCid + ": " + e.getMessage());
+                }
+            });
+        }
     }
+
+
 
     private void handleRequest(HttpExchange exchange) throws IOException {
         String body = readAll(exchange.getRequestBody());
