@@ -146,8 +146,6 @@ public class ClientMutexAdapter implements Adapter {
         }
     }
 
-
-
     private void handleRequest(HttpExchange exchange) throws IOException {
         String body = readAll(exchange.getRequestBody());
 
