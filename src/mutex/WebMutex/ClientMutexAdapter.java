@@ -103,20 +103,7 @@ public class ClientMutexAdapter implements Adapter {
     }
 
     private void sendGrant(int cid) {
-        sched.execute(() -> {
-        try {
-            URI grantUri = URI.create(base + "/api/grant/" + cid);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(grantUri)
-                    .timeout(reqTimeout)
-                    .GET()
-                    .build();
-            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-            System.out.println("[ADAPTER] Sent Grant to client " + cid + " → " + response.body());
-        } catch (Exception e) {
-            System.err.println("[ADAPTER] Error sending Grant to client " + cid + ": " + e.getMessage());
-        }
-        });
+        
     }
 
     private void handleRequest(HttpExchange exchange) throws IOException {
@@ -156,11 +143,11 @@ public class ClientMutexAdapter implements Adapter {
         // Respond to the original sender
         sendResponse(exchange, 200, "{\"status\":\"ok\"}");
     }
-/* 
+
     private static String safe(String s) {
         return (s == null) ? "" : s;
     }
-*/
+
     private String readAll(java.io.InputStream is) throws IOException {
         return new String(is.readAllBytes());
     }
