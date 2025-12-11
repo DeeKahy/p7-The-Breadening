@@ -1,117 +1,152 @@
-# client_sim.py
+# Importing required functions for the client simulator
 import requests
 import random
 import time
+import threading
 from threading import Thread, Lock
 
+# Server configuration
 SERVER_URL = "http://localhost:5000"
-
+active_clients = []
+waiting_clients = []
+completed_clients = []
+client_counter = 0
 lock = Lock()
-client_states = {}
 
+def make_request(client_id):
+    """Make a request to the server and handle the response"""
+    global active_clients
 
-def client_loop(client_id: str):
-    """
-    Simulerer UPPAAL Client(id):
-      begin -> request! -> vent på grant -> using (2-10s) -> done! -> begin ...
-    """
+    try:
+        response = requests.get(f"{SERVER_URL}/api/requesting/{client_id}")
+        status = response.status_code
+        data = response.json()
+        message = data.get("message")
+        print(f"Client {client_id} requested -> {message} ({status})")
+
+        with lock:
+            if client_id not in active_clients:
+                active_clients.append(client_id)
+
+        # Schedule a return after random time (2-10 seconds)
+        return_delay = random.uniform(2, 10)
+        print(f"Client {client_id} will return in {return_delay:.1f} seconds")
+
+        # Start return timer in separate thread
+        return_thread = Thread(target=schedule_return, args=(client_id, return_delay))
+        return_thread.daemon = True
+        return_thread.start()
+
+    except requests.exceptions.ConnectionError:
+        print(f"Client {client_id} failed to connect - is the server running?")
+    except Exception as e:
+        print(f"Client {client_id} encountered error: {e}")
+
+def schedule_return(client_id, delay):
+    """Wait and then make a return request"""
+    global active_clients, waiting_clients, completed_clients
+
+    time.sleep(delay)
+
+    with lock:
+        if client_id not in waiting_clients:
+            waiting_clients.append(client_id)
 
     while True:
-        # BEGIN: vent op til 5 sek (delay <= 5)
-        think_delay = random.uniform(0, 5)
-        with lock:
-            client_states[client_id] = f"begin (sleep {think_delay:.1f}s)"
-        time.sleep(think_delay)
+        try:
+            response = requests.get(f"{SERVER_URL}/api/returning/{client_id}")
+            status = response.status_code
+            data = response.json() if response.text else {}
+            message = data.get("message")
+            #print(f"Client {client_id} returned: {response.text}")
 
-        # REQUEST-FASEN: bliv ved til vi får grant (proceed)
-        while True:
-            try:
-                r = requests.get(f"{SERVER_URL}/api/requesting/{client_id}")
-            except requests.exceptions.ConnectionError:
-                print(f"{client_id}: kunne ikke forbinde til serveren")
-                time.sleep(1)
+            # Loop and keep retrying
+            if status == 423: #"Not your turn yet" in response.text:
+                print(f"Locked Client {client_id}: Not your turn yet (423), retrying...")
+                time.sleep(5)
                 continue
 
-            status = r.status_code
-            data = r.json() if r.text else {}
-            msg = data.get("message")
+            elif status == 200:
+                #data = response.json()
+                next_client = data.get("next")
+                print(f"Successful Client {client_id}: Returned sucesssfully, Next: {next_client}")
+                finalize_client(client_id)
+                return
+            
+            elif status == 204:
+                print(f"Accomplished Client {client_id}: Queue is now empty")
+                finalize_client(client_id)
+                return
 
-            if status == 200 and msg == "proceed":
-                print(f"{client_id}: GRANTED (proceed)")
-                break
-            elif status == 202:
-                pos = data.get("position")
-                print(f"{client_id}: queued på position {pos}, venter...")
-                time.sleep(1)  # poll efter 1 sek
-            elif status in (409, 500):
-                print(f"{client_id}: fejl i request-fase: {status} {msg}")
-                time.sleep(1)
-            else:
-                print(f"{client_id}: uventet svar i request-fase: {status} {msg}")
-                time.sleep(1)
+            else: # Successful return
+                with lock:
+                    active_clients.remove(client_id)
+                    waiting_clients.remove(client_id)
+                    completed_clients.append(client_id)
+                return "Successfully returned"
 
-        # USING: brug ressourcen 2-10 sek (delay mellem 2 og 10)
-        use_delay = random.uniform(2, 10)
-        with lock:
-            client_states[client_id] = f"using (sleep {use_delay:.1f}s)"
-        print(f"{client_id}: USING i {use_delay:.1f} sek.")
-        time.sleep(use_delay)
+        except requests.exceptions.ConnectionError:
+            print(f"Client {client_id} failed to return - server connection lost")
+        except Exception as e:
+            print(f"Client {client_id} return error: {e}")
 
-        # DONE-FASEN: send done! til serveren (returning)
+def finalize_client(client_id):
+    with lock:
+        if client_id in active_clients:
+            active_clients.remove(client_id)
+        if client_id in waiting_clients:
+            waiting_clients.remove(client_id)
+        completed_clients.append(client_id)
+
+def simulate_random_clients():
+    """Main simulation loop that creates random client requests"""
+    global client_counter, active_clients
+
+    print("Starting client simulation...")
+    print("Press Ctrl+C to stop")
+
+    try:
         while True:
-            try:
-                r = requests.get(f"{SERVER_URL}/api/returning/{client_id}")
-            except requests.exceptions.ConnectionError:
-                print(f"{client_id}: kunne ikke sende return (forbindelsesfejl)")
-                time.sleep(1)
-                continue
+            # Random delay between new requests (1-5 seconds)
+            request_delay = random.uniform(1, 5)
+            time.sleep(request_delay)
 
-            status = r.status_code
-            data = r.json() if r.text else {}
-            msg = data.get("message")
+            # Generate new client
+            client_counter += 1
+            client_id = f"client_{client_counter}"
 
-            if status in (200, 204):
-                # 200: returned + evt next, 204: queue_empty
-                print(f"{client_id}: DONE ({status}, {msg})")
-                break
-            elif status == 423:
-                # "not_your_turn" – svarer til at vi ikke er forrest i køen
-                print(f"{client_id}: ikke min tur endnu (423), prøver igen...")
-                time.sleep(1)
-            elif status in (409, 500):
-                print(f"{client_id}: fejl i return-fase: {status} {msg}")
-                time.sleep(1)
-            else:
-                print(f"{client_id}: uventet svar i return-fase: {status} {msg}")
-                time.sleep(1)
+            print(f"\n--- New client {client_id} making request ---")
+            print(f"Active clients: {len(active_clients)} - {active_clients}")
 
-        # Herefter går vi tilbage til BEGIN (loopet fortsætter)
+            # Make request in separate thread so we don't block
+            request_thread = Thread(target=make_request, args=(client_id,))
+            request_thread.daemon = True
+            request_thread.start()
 
+    except KeyboardInterrupt:
+        print("\nSimulation stopped by user")
+        print(f"Final active clients: {active_clients}")
 
 def status_monitor():
+    """Monitor and display status every 10 seconds"""
     while True:
         time.sleep(10)
-        with lock:
-            print("\n=== STATUS UPDATE ===")
-            for cid, st in client_states.items():
-                print(f"{cid}: {st}")
-            print("====================\n")
+        print(f"\n=== STATUS UPDATE ===")
+        print(f"Total clients created: {client_counter}")
+        print(f"Currently active: {len(active_clients)}")
+        print(f"Currently waiting: {len(waiting_clients)}")
+        print(f"Completed clients: {len(completed_clients)}")
+        print("====================\n")
 
-
-if __name__ == "__main__":
+# Main Driver Function
+if __name__ == '__main__':
     print("Client Simulator for The Breadening Queue System")
-    print("Starter 3 klienter: client_0, client_1, client_2\n")
+    print("Make sure the server is running on http://localhost:5000")
 
-    # Start status-monitor
-    Thread(target=status_monitor, daemon=True).start()
+    # Start status monitor in background
+    status_thread = Thread(target=status_monitor)
+    status_thread.daemon = True
+    status_thread.start()
 
-    # Start 3 klienter (som i UPPAAL-modellen med N = 3)
-    for i in range(3):
-        cid = f"client_{i}"
-        client_states[cid] = "starting"
-        t = Thread(target=client_loop, args=(cid,), daemon=True)
-        t.start()
-
-    # Hold main-tråd i live
-    while True:
-        time.sleep(1)
+    # Start the main simulation
+    simulate_random_clients()

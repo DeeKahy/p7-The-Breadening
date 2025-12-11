@@ -1,86 +1,73 @@
-# server.py
-from flask import Flask, jsonify
+# Importing required functions
+from flask import Flask, request, jsonify
 
+# Flask constructor
 app = Flask(__name__)
 
-# Kø: første element er den, der har/skal have adgang
+
+isAvailable = True
 queue = []
 
 
-@app.get("/api/requesting/<clientno>")
+@app.get('/api/requesting/<clientno>')
 def requesting(clientno):
-    """
-    request! fra klienten.
-    UPPAAL-logik:
-      - hvis klienten ikke er i køen → enqueue
-      - hvis den står forrest → den må gå i 'using' (grant)
-      - ellers → den er i køen, men må vente
-    """
-    global queue
+    global isAvailable, queue
 
-    # Enqueue kun hvis ikke allerede i kø
     if clientno not in queue:
         queue.append(clientno)
 
-    pos = queue.index(clientno)
-
-    if pos == 0:
-        # grant! til denne klient
+    if queue.index(clientno) == 0:
+        isAvailable = False
         return jsonify({
-            "message": "proceed",   # svarer til grant!
+            "message": "proceed",
             "position": 0
-        }), 200
-    else:
-        # Klienten er i kø, men ikke forrest
+        }), 200 #"okay go right straight totally ahead"
+    elif queue.index(clientno) > 0:
         return jsonify({
             "message": "queued",
-            "position": pos
-        }), 202
+            "position": queue.index(clientno)
+        }), 202 #"you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
+    else:
+        return jsonify({
+            "message": "already_in_queue",
+            "position": queue.index(clientno)
+        }), 409 #"you are already in the queue, please wait until client[" + str(queue.index(clientno) - 1 ) + "] has returned"
 
 
-@app.get("/api/returning/<clientno>")
+@app.get('/api/returning/<clientno>')
 def returning(clientno):
-    """
-    done! fra klienten.
-    UPPAAL-logik:
-      - kun første i kø må lave done!
-      - efter dequeue: hvis køen ikke er tom → grant til næste
-    """
-    global queue
+    global isAvailable, queue
 
     if not queue:
-        # I modellen kan done! ikke ske på tom kø; vi svarer med fejl
-        return jsonify({"message": "queue_empty_error"}), 500
+        return jsonify({"message": "queue_empty_error"}), 500 #"something seriously went wrong go fix anders"
 
     if clientno != queue[0]:
         if clientno in queue:
-            # Klienten er i køen, men ikke forrest → ikke din tur
             return jsonify({
                 "message": "not_your_turn",
                 "position": queue.index(clientno)
-            }), 423
+            }), 423 #"Not your turn yet, please wait until client[" + str(queue.index(clientno) - 1 ) + "] has returned"
         else:
-            # Klienten er slet ikke i køen
             return jsonify({
                 "message": "not_in_queue"
-            }), 409
-
-    # Her er clientno == queue[0] → lovligt done!
-    queue.pop(0)
-
-    if queue:
-        # Der står stadig nogen i køen → grant til næste
-        next_client = queue[0]
-        return jsonify({
-            "message": "returned",
-            "next": next_client
-        }), 200
+            }), 409 #"You are not in the queue"
     else:
-        # Køen er tom
-        return jsonify({
-            "message": "queue_empty"
-        }), 204
+        queue.pop(0)
+
+        if queue:
+            isAvailable = False
+            return jsonify({
+                "message": "returned",
+                "next": queue[0]
+            }), 200 #"Returning: " + str(clientno) + " next is " + str(queue[0])
+        else:
+            isAvailable = True
+            return jsonify({
+                "message": "queue_empty"
+            }), 204 #"Queue is now empty."
 
 
-if __name__ == "__main__":
+# Main Driver Function
+if __name__ == '__main__':
+    # Run the application on the local development server
     app.run(debug=True)
