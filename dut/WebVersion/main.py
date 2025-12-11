@@ -15,7 +15,7 @@ class Centralized:
                 if clientno not in queue:
                     queue.append(clientno)
 
-                if queue.index(clientno) == 0:
+                if queue.index(clientno) == 0 and isAvailable == true:
                     isAvailable = False
                     return jsonify({
                         "message": "proceed",
