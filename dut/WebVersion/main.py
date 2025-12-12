@@ -324,6 +324,10 @@ def build_known_processes(
 
 # Main Driver Function
 if __name__ == "__main__":
+    args = parse_args()
+
+    all_ids = [int(x) for x in args.processes.split(",") if x.strip() != ""]
+
     # Choose mapping strategy
     if args.peer_map:
         known = parse_peer_map(args.peer_map)
