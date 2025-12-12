@@ -1,11 +1,10 @@
 # Importing required functions
-from typing import Any, Dict
-import requests
 import argparse
 import threading
 import time
+from typing import Any, Dict
 
-
+import requests
 from flask import Flask, jsonify, request
 
 # Flask constructor
@@ -15,17 +14,22 @@ app = Flask(__name__)
 class Centralized:
     def __init__(
         self,
-        processes: Dict[int, str],
-        process_id: int,
-        isAvailable: bool,
-        queue: list[Dict[str, Any]],
-        granted_id: int,
-        parameters: Dict[str, Any],
-        round_trip_time: float,
+        processes,
+        process_id,
+        round_trip_time,
+        isAvailable=True,
+        queue=None,
+        granted_id=None,
+        parameters=None,
     ):
-        self.isAvailable = True
-        self.queue = []
-        self.granted_id = None
+        self.id = process_id
+        self.known_processes = processes
+        self.round_trip_time = round_trip_time
+
+        self.isAvailable = isAvailable
+        self.queue = [] if queue is None else queue
+        self.granted_id = granted_id
+        self.parameters = {} if parameters is None else parameters
 
     def log(self, msg: str) -> None:
         print(f"[Process {self.id}] {msg}", flush=True)
@@ -75,7 +79,6 @@ class Centralized:
             )
         except requests.RequestException as e:
             self.log(f"Failed to send {msg_type} to {receiver}: {e}")
-
 
     def handle_request(self, clientno):
         if clientno not in self.queue:
@@ -128,6 +131,7 @@ class Centralized:
             self.handle_request(sender_id)
         elif msg_type == "done":
             self.handle_done(sender_id)
+
 
 # --- Flask wiring -----------------------------------------------------------
 
@@ -283,7 +287,9 @@ if __name__ == "__main__":
         known = build_known_processes(args.host, args.base_port, all_ids)
 
     centralized = Centralized(
-        process_id=args.id, processes=known, round_trip_time=args.round_trip_time
+        process_id=args.id,
+        processes=known,
+        round_trip_time=args.round_trip_time,
     )
 
     # loop_thread = threading.Thread(target=centralized.run_forever, daemon=True)
