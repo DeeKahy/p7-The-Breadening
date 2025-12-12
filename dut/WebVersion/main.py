@@ -11,6 +11,17 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 
 
+@app.route("/api/message", methods=["POST"])
+def api_message():
+    global centralized
+    if centralized is None:
+        return jsonify({"error": "Process not initialized"}), 500
+
+    data = request.get_json(force=True, silent=True) or {}
+    centralized.receive(data)
+    return jsonify({"status": "ok"}), 200
+
+
 class Centralized:
     def __init__(
         self,
@@ -80,37 +91,36 @@ class Centralized:
         except requests.RequestException as e:
             self.log(f"Failed to send {msg_type} to {receiver}: {e}")
 
-    def handle_request(self, clientno):
+    def handle_request(self, clientno: int):
         if clientno not in self.queue:
             self.queue.append(clientno)
 
-        if self.queue.index(clientno) == 0 and self.isAvailable == True:
+        if self.queue.index(clientno) == 0 and self.isAvailable:
             self.isAvailable = False
-            self.send("proceed", self.queue.index(0))
-            #return jsonify(
+            self.granted_id = clientno
+            self.send("proceed", clientno)
+            # return jsonify(
             #    {"message": "proceed", "position": 0}
-            #), 200  # "okay go right straight totally ahead"
+            # ), 200  # "okay go right straight totally ahead"
         else:  # queue.index(clientno) > 0:
-            self.send("queued", self.queue.index(clientno))
-            #return (
+            self.send("queued", clientno)
+            # return (
             #    jsonify({"message": "queued", "position": self.queue.index(clientno)}),
             #    202,
-            #)  # "you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
+            # )  # "you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
 
-    def handle_done(self, request):
-        if (
-            request.get("message") == "done"
-            and request.get("sender") == self.granted_id
-        ):
+    def handle_done(self, sender_id: int):
+        if sender_id == self.granted_id:
             self.queue.pop(0)
             self.isAvailable = True
-            if self.queue.length > 0:
-                self.sendGrant()
+            if len(self.queue) > 0:
+                self.send_grant()
                 self.isAvailable = False
 
     def send_grant(self):
-        self.log(f"Giving head of queue {self.queue.index(0)} GRANT")
-        self.send("grant", self.queue.index(0))
+        self.granted_id = self.queue[0]
+        self.log(f"Giving head of queue {self.granted_id} GRANT")
+        self.send("grant", self.granted_id)
 
     def receive(self, request_json: Dict[str, Any]) -> None:
         """
@@ -137,8 +147,58 @@ class Centralized:
 
 # --- Flask wiring -----------------------------------------------------------
 
-app = Flask(__name__)
+# app = Flask(__name__)
 centralized: Centralized | None = None
+
+
+@app.get("/api/requesting/<int:clientno>")
+def api_requesting(clientno: int):
+    global centralized
+    if centralized is None:
+        return jsonify({"error": "Process not initialized"}), 500
+
+    # tilføj til kø hvis ikke allerede
+    if clientno not in centralized.queue:
+        centralized.queue.append(clientno)
+
+    # hvis du er forrest og serveren er fri -> proceed
+    if (
+        centralized.isAvailable
+        and centralized.queue
+        and centralized.queue[0] == clientno
+    ):
+        centralized.isAvailable = False
+        centralized.granted_id = clientno
+        return jsonify({"message": "proceed"}), 200
+
+    # ellers: stadig queued (også selvom du allerede er i kø)
+    return jsonify(
+        {"message": "queued", "position": centralized.queue.index(clientno)}
+    ), 202
+
+
+@app.get("/api/returning/<int:clientno>")
+def api_returning_id(clientno: int):
+    global centralized
+
+    if clientno not in centralized.queue:
+        return jsonify({"message": "not_in_queue"}), 409
+
+    if centralized.queue[0] != clientno:
+        return jsonify(
+            {"message": "not_your_turn", "position": centralized.queue.index(clientno)}
+        ), 423
+
+    centralized.queue.pop(0)
+
+    # frigiv altid – næste får lov når den poller /api/requesting/<id>
+    centralized.isAvailable = True
+    centralized.granted_id = None
+
+    if centralized.queue:
+        return jsonify({"message": "returned", "next": centralized.queue[0]}), 200
+    else:
+        return jsonify({"message": "queue_empty"}), 204
 
 
 @app.route("/api/returning", methods=["POST"])
@@ -172,6 +232,7 @@ def api_request():
       "parameters": { ... }
     }
     """
+
     global centralized
     if centralized is None:
         return jsonify({"error": "Process not initialized"}), 500
