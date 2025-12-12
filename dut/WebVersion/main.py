@@ -9,6 +9,55 @@ class Centralized:
         self.isAvailable = True
         self.queue = []
         self.granted_id = None
+    
+    def log(self, msg: str) -> None:
+        print(f"[Process {self.id}] {msg}", flush=True)
+
+    def send(self, msg_type: str, receiver: int, parameters: Dict[str, Any] | None = None) -> None:
+        """
+        Send an HTTP POST to the receiver's /api/message endpoint with the required JSON format:
+        {
+          "type": "<msg_type>",
+          "sender": <my id>,
+          "receiver": <receiver id>,
+          "parameters": { ... }
+        }
+        """
+        if parameters is None:
+            parameters = {}
+
+        payload = {
+            "type": msg_type,
+            "sender": self.id,
+            "receiver": receiver,
+            "parameters": parameters,
+        }
+
+        url = self.known_processes.get(receiver)
+
+        if url is None:
+            # Special case: UPPAAL can send CHECK with leader = -1.
+            # We still want TRON to see this message, so route it via ANY fake node port,
+            # but keep receiver = -1 in the JSON.
+            if receiver < 0 and self.known_processes:
+                # Just use the first known URL (e.g. node 0 at port 5000)
+                url = next(iter(self.known_processes.values()))
+                self.log(
+                    f"Routing {msg_type} to virtual receiver {receiver} via {url}"
+                )
+            else:
+                self.log(f"Unknown receiver {receiver}, cannot send {msg_type}")
+                return
+
+        try:
+            self.log(f"Sending {msg_type} to {receiver} at {url}")
+            requests.post(
+                f"{url}/api/message",
+                json=payload,
+                timeout=self.round_trip_time / 2,
+            )
+        except requests.RequestException as e:
+            self.log(f"Failed to send {msg_type} to {receiver}: {e}")
 
     def requesting(self, clientno):
         if clientno not in self.queue:
@@ -26,43 +75,18 @@ class Centralized:
                 "position": self.queue.index(clientno)
             }), 202 #"you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
                 
-    def returning(self, clientno):
+    def returning(self):
         if "message" == "done" and returning.sender == self.granted_id:
             self.queue.pop()
             self.isAvailable = True
             if (self.queue.length > 0):
-                send ("grant") to self.queue.index(0)
+                self.sendGrant()
                 self.isAvailable = False
-                    
 
-        #old code
-        if not self.queue:
-            return jsonify({"message": "queue_empty_error"}), 500 #"something seriously went wrong go fix anders"
+    def sendGrant(self):
+        self.log(f"Giving head of queue {self.queue.index(0)} GRANT")
+        self.send ("grant", self.queue.index(0) )
 
-        if clientno != self.queue[0]:
-            if clientno in self.queue:
-                return jsonify({
-                    "message": "not_your_turn",
-                    "position": self.queue.index(clientno)
-                }), 423 #"Not your turn yet, please wait until client[" + str(queue.index(clientno) - 1 ) + "] has returned"
-            else:
-                return jsonify({
-                    "message": "not_in_queue"
-                }), 409 #"You are not in the queue"
-        else:
-            self.queue.pop(0)
-
-            if self.queue:
-                self.isAvailable = False
-                return jsonify({
-                    "message": "returned",
-                            "next": self.queue[0]
-                        }), 200 #"Returning: " + str(clientno) + " next is " + str(queue[0])
-            else:    
-                self.isAvailable = True
-                return jsonify({
-                    "message": "queue_empty"
-                }), 204 #"Queue is now empty."
 '''
     @app.get('/api/requesting/<clientno>')
     def requesting(clientno):
