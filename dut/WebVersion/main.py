@@ -345,5 +345,13 @@ if __name__ == "__main__":
     loop_thread = threading.Thread(target=centralized.run_forever, daemon=True)
     loop_thread.start()
 
-    # Run the application on the local development server
-    app.run(debug=True)
+    # Run Flask app on port base-port + id (still configurable per-node)
+    port = args.base_port + args.id
+    centralized.log(f"Starting Flask server on port {port}")
+    app.run(
+        host=args.flask_host,
+        port=port,
+        debug=False,
+        use_reloader=False,
+        threaded=True,
+    )
