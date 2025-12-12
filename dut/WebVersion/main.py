@@ -60,7 +60,7 @@ class Centralized:
         except requests.RequestException as e:
             self.log(f"Failed to send {msg_type} to {receiver}: {e}")
 
-    def requesting(self, clientno):
+    def handle_request(self, clientno):
         if clientno not in self.queue:
             self.queue.append(clientno)
 
@@ -76,17 +76,39 @@ class Centralized:
                 "position": self.queue.index(clientno)
             }), 202 #"you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
                 
-    def returning(self):
-        if "message" == "done" and returning.sender == self.granted_id:
+    def handle_done(self, request):
+        if "message" == "done" and sender == self.granted_id:
             self.queue.pop()
             self.isAvailable = True
             if (self.queue.length > 0):
                 self.sendGrant()
                 self.isAvailable = False
 
-    def sendGrant(self):
+    def send_grant(self):
         self.log(f"Giving head of queue {self.queue.index(0)} GRANT")
         self.send ("grant", self.queue.index(0) )
+
+    def receive(self, request_json: Dict[str, Any]) -> None:
+        """
+        Handle an incoming request according to the pseudocode's 'receives(request)'.
+        """
+        msg_type = request_json.get("type")
+        sender_id = int(request_json.get("sender"))
+        receiver_id = int(request_json.get("receiver"))
+
+        # Drop messages not intended for us
+        if receiver_id != self.id:
+            self.log(
+                f"Ignoring message type={msg_type} from {sender_id} intended for {receiver_id}"
+            )
+            return
+
+        self.log(f"Received {msg_type} from {sender_id}")
+
+        if msg_type == "request":
+            self.handle_request(sender_id)
+        elif msg_type == "done":
+            self.handle_done(sender_id)
 
 '''
     @app.get('/api/requesting/<clientno>')
