@@ -1,5 +1,6 @@
 # Importing required functions
 from typing import Any, Dict
+import requests
 
 from flask import Flask, jsonify, request
 
