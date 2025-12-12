@@ -1,11 +1,12 @@
 # Importing required functions
 from flask import Flask, request, jsonify
+from typing import Dict, Any
 
 # Flask constructor
 app = Flask(__name__)
 
 class Centralized:
-    def __init__(self, isAvailable: bool, queue: list[int], granted_id:int):
+    def __init__(self, isAvailable: bool, queue: list[int], granted_id:int, parameters: Dict[str, Any]):
         self.isAvailable = True
         self.queue = []
         self.granted_id = None
