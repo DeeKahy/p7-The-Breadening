@@ -13,7 +13,7 @@ import java.util.concurrent.*;
 
 /**
  * Adapter that maps the three channels of the UPPAAL‑TRON model
- *   request(id)  →  GET /api/requesting/{id}   Output
+ *   request(id)  →  GET /api/request/{id}   Output
  *   grant(id)    ←  HTTP 200 "okay go …"       Input
  *   done(id)     →  GET /api/returning/{id}    Output
  *
@@ -90,7 +90,7 @@ public class MutexAdapter implements Adapter {
     private void pollRequest(int cid) {
         long startTime = System.nanoTime();
         HttpRequest req = HttpRequest.newBuilder(
-            base.resolve("/api/requesting/" + cid)
+            base.resolve("/api/request/" + cid)
         )
             .timeout(reqTimeout)
             .GET()
