@@ -5,56 +5,64 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 
 class Centralized:
-    isAvailable = True
-    queue = []
-    granted_id = 0
+    def __init__(self, isAvailable: bool, queue: list[int], granted_id:int):
+        self.isAvailable = True
+        self.queue = []
+        self.granted_id = None
 
-    def run_forever(self) -> None:
-        while True:
-            def requesting(clientno):
-                if clientno not in queue:
-                    queue.append(clientno)
+    def requesting(self, clientno):
+        if clientno not in self.queue:
+            self.queue.append(clientno)
 
-                if queue.index(clientno) == 0 and isAvailable == true:
-                    isAvailable = False
-                    return jsonify({
-                        "message": "proceed",
-                        "position": 0
-                    }), 200 #"okay go right straight totally ahead"
-                else: #queue.index(clientno) > 0:
-                    return jsonify({
-                        "message": "queued",
-                        "position": queue.index(clientno)
-                    }), 202 #"you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
+        if self.queue.index(clientno) == 0 and self.isAvailable == True:
+            self.isAvailable = False
+            return jsonify({
+                "message": "proceed",
+                "position": 0
+            }), 200 #"okay go right straight totally ahead"
+        else: #queue.index(clientno) > 0:
+            return jsonify({
+                "message": "queued",
+                "position": self.queue.index(clientno)
+            }), 202 #"you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
                 
-            def returning(clientno):
-                if not queue:
-                    return jsonify({"message": "queue_empty_error"}), 500 #"something seriously went wrong go fix anders"
+    def returning(self, clientno):
+        if "message" == "done" and returning.sender == self.granted_id:
+            self.queue.pop()
+            self.isAvailable = True
+            if (self.queue.length > 0):
+                send ("grant") to self.queue.index(0)
+                self.isAvailable = False
+                    
 
-                if clientno != queue[0]:
-                    if clientno in queue:
-                        return jsonify({
-                            "message": "not_your_turn",
-                            "position": queue.index(clientno)
-                        }), 423 #"Not your turn yet, please wait until client[" + str(queue.index(clientno) - 1 ) + "] has returned"
-                    else:
-                        return jsonify({
-                            "message": "not_in_queue"
-                        }), 409 #"You are not in the queue"
-                else:
-                    queue.pop(0)
+        #old code
+        if not self.queue:
+            return jsonify({"message": "queue_empty_error"}), 500 #"something seriously went wrong go fix anders"
 
-                    if queue:
-                        isAvailable = False
-                        return jsonify({
-                            "message": "returned",
-                            "next": queue[0]
+        if clientno != self.queue[0]:
+            if clientno in self.queue:
+                return jsonify({
+                    "message": "not_your_turn",
+                    "position": self.queue.index(clientno)
+                }), 423 #"Not your turn yet, please wait until client[" + str(queue.index(clientno) - 1 ) + "] has returned"
+            else:
+                return jsonify({
+                    "message": "not_in_queue"
+                }), 409 #"You are not in the queue"
+        else:
+            self.queue.pop(0)
+
+            if self.queue:
+                self.isAvailable = False
+                return jsonify({
+                    "message": "returned",
+                            "next": self.queue[0]
                         }), 200 #"Returning: " + str(clientno) + " next is " + str(queue[0])
-                    else:
-                        isAvailable = True
-                        return jsonify({
-                            "message": "queue_empty"
-                        }), 204 #"Queue is now empty."
+            else:    
+                self.isAvailable = True
+                return jsonify({
+                    "message": "queue_empty"
+                }), 204 #"Queue is now empty."
 '''
     @app.get('/api/requesting/<clientno>')
     def requesting(clientno):
