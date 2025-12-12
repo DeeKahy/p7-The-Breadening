@@ -54,7 +54,7 @@ public class MutexAdapter implements Adapter {
     public void configure(Reporter reporter) throws TronException, IOException {
         this.reporter = reporter;
 
-        reporter.setTimeUnit(50_000); // 50 ms per model time unit
+        reporter.setTimeUnit(1_000_000); // 50 ms per model time unit
         reporter.setTimeout(1_000_000); // test budget: 100 s
 
         // Bind existing *global* int variables – not the template constant `id`!
@@ -90,7 +90,7 @@ public class MutexAdapter implements Adapter {
     private void pollRequest(int cid) {
         long startTime = System.nanoTime();
         HttpRequest req = HttpRequest.newBuilder(
-            base.resolve("/api/request/" + cid)
+            base.resolve("/api/requesting/" + cid)
         )
             .timeout(reqTimeout)
             .GET()
@@ -172,26 +172,10 @@ public class MutexAdapter implements Adapter {
                 String body = safe(resp.body());
 
                 switch (status) {
-                    case 200: // returned - grant next client if present
-                        try {
-                            // Parse JSON response to get "next" field
-                            if (body.contains("\"next\"")) {
-                                String nextStr = body
-                                    .split("\"next\"")[1].split(":")[1].split(
-                                        "[,}]"
-                                    )[0].trim()
-                                    .replace("\"", "");
-                                int nextId = Integer.parseInt(nextStr);
-                                reporter.report(
-                                    OUT_GRANT,
-                                    new int[] { nextId }
-                                );
-                            }
-                        } catch (Exception e) {
-                            System.err.println(
-                                "Failed to parse next client from: " + body
-                            );
-                        }
+                    case 200: // returned - ok
+                        System.out.println(
+                            "[ADAPTER] done(" + cid + ") ok (returned)"
+                        );
                         break;
                     case 204: // queue_empty - nothing to do
                         // Successfully returned, queue is now empty
