@@ -73,6 +73,7 @@ class Centralized:
         except requests.RequestException as e:
             self.log(f"Failed to send {msg_type} to {receiver}: {e}")
 
+
     def handle_request(self, clientno):
         if clientno not in self.queue:
             self.queue.append(clientno)
@@ -124,7 +125,6 @@ class Centralized:
             self.handle_request(sender_id)
         elif msg_type == "done":
             self.handle_done(sender_id)
-
 
 """
     @app.get('/api/requesting/<clientno>')
@@ -237,7 +237,6 @@ def parse_args():
     parser.add_argument(
         "--processes",
         type=str,
-        required=True,
         help="Comma-separated list of all process IDs, e.g. 0,1,2,3",
     )
     parser.add_argument(
@@ -326,7 +325,7 @@ def build_known_processes(
 if __name__ == "__main__":
     args = parse_args()
 
-    all_ids = [int(x) for x in args.processes.split(",") if x.strip() != ""]
+    all_ids = [int(x) for x in args.peer_map.split(",") if x.strip() != ""]
 
     # Choose mapping strategy
     if args.peer_map:
@@ -342,8 +341,8 @@ if __name__ == "__main__":
         process_id=args.id, processes=known, round_trip_time=args.round_trip_time
     )
 
-    loop_thread = threading.Thread(target=centralized.run_forever, daemon=True)
-    loop_thread.start()
+    # loop_thread = threading.Thread(target=centralized.run_forever, daemon=True)
+    # loop_thread.start()
 
     # Run Flask app on port base-port + id (still configurable per-node)
     port = args.base_port + args.id
