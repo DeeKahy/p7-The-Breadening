@@ -237,6 +237,7 @@ def parse_args():
     parser.add_argument(
         "--processes",
         type=str,
+        required=True,
         help="Comma-separated list of all process IDs, e.g. 0,1,2,3",
     )
     parser.add_argument(
@@ -325,7 +326,7 @@ def build_known_processes(
 if __name__ == "__main__":
     args = parse_args()
 
-    all_ids = [int(x) for x in args.peer_map.split(",") if x.strip() != ""]
+    all_ids = [int(x) for x in args.processes.split(",") if x.strip() != ""]
 
     # Choose mapping strategy
     if args.peer_map:
