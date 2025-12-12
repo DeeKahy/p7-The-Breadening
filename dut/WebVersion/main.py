@@ -86,14 +86,16 @@ class Centralized:
 
         if self.queue.index(clientno) == 0 and self.isAvailable == True:
             self.isAvailable = False
-            return jsonify(
-                {"message": "proceed", "position": 0}
-            ), 200  # "okay go right straight totally ahead"
+            self.send("proceed", self.queue.index(0))
+            #return jsonify(
+            #    {"message": "proceed", "position": 0}
+            #), 200  # "okay go right straight totally ahead"
         else:  # queue.index(clientno) > 0:
-            return (
-                jsonify({"message": "queued", "position": self.queue.index(clientno)}),
-                202,
-            )  # "you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
+            self.send("queued", self.queue.index(clientno))
+            #return (
+            #    jsonify({"message": "queued", "position": self.queue.index(clientno)}),
+            #    202,
+            #)  # "you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
 
     def handle_done(self, request):
         if (
