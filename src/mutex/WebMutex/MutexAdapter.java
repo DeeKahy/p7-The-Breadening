@@ -54,7 +54,7 @@ public class MutexAdapter implements Adapter {
     public void configure(Reporter reporter) throws TronException, IOException {
         this.reporter = reporter;
 
-        reporter.setTimeUnit(1_000_000); // 50 ms per model time unit
+        reporter.setTimeUnit(250_000); // 50 ms per model time unit
         reporter.setTimeout(1_000_000); // test budget: 100 s
 
         // Bind existing *global* int variables – not the template constant `id`!
@@ -68,27 +68,56 @@ public class MutexAdapter implements Adapter {
         reporter.addVarToOutput(OUT_GRANT, "granted_c_id");
     }
 
+    //chatgpt
+    private final ConcurrentHashMap<Integer, ScheduledFuture<?>> pollRetry =
+        new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, Boolean> wantsGrant =
+        new ConcurrentHashMap<>();
+
+    private void stopPolling(int cid) {
+        //chatgpt
+        wantsGrant.put(cid, false);
+        ScheduledFuture<?> f = pollRetry.remove(cid);
+        if (f != null) f.cancel(false);
+    }
+
+    private void schedulePoll(int cid, long delay, TimeUnit unit) {
+        //chatgpt
+        // Kun schedule hvis vi stadig venter på grant
+        if (!wantsGrant.getOrDefault(cid, false)) return;
+
+        ScheduledFuture<?> old = pollRetry.put(
+            cid,
+            sched.schedule(() -> pollRequest(cid), delay, unit)
+        );
+        if (old != null) old.cancel(false); // cancel gammel retry
+    }
+
     @Override
     public void perform(int chan, int[] params) {
         // every bound channel carries ONE integer parameter – the client id
         int cid = params[0];
 
         if (chan == IN_REQUEST) {
-            System.out.println(
-                "[ADAPTER] perform: request(" + cid + ") - calling pollRequest"
-            );
+            stopPolling(cid);
+            wantsGrant.put(cid, true);
             pollRequest(cid);
+            //System.out.println(
+            //    "[ADAPTER] perform: request(" + cid + ") - calling pollRequest"
+            //);
         } else if (chan == IN_DONE) {
-            System.out.println(
-                "[ADAPTER] perform: done(" + cid + ") - calling sendDone"
-            );
+            stopPolling(cid); // DONE => må ikke poll’e mere
             sendDone(cid);
+            //System.out.println(
+            //    "[ADAPTER] perform: done(" + cid + ") - calling sendDone"
+            //);
         }
     }
 
     // ── request → (poll) → grant loop ───────────────────────────────────────
     private void pollRequest(int cid) {
-        long startTime = System.nanoTime();
+        if (!wantsGrant.getOrDefault(cid, false)) return;
+
         HttpRequest req = HttpRequest.newBuilder(
             base.resolve("/api/requesting/" + cid)
         )
@@ -99,59 +128,23 @@ public class MutexAdapter implements Adapter {
         http
             .sendAsync(req, HttpResponse.BodyHandlers.ofString())
             .thenAccept(resp -> {
-                long endTime = System.nanoTime();
-                long elapsedMs = (endTime - startTime) / 1_000_000;
                 int status = resp.statusCode();
 
-                System.out.println(
-                    "[ADAPTER] pollRequest(" +
-                        cid +
-                        ") received status " +
-                        status +
-                        " after " +
-                        elapsedMs +
-                        "ms"
-                );
-
                 switch (status) {
-                    case 200: // proceed - grant access
-                        System.out.println(
-                            "[ADAPTER] Reporting grant(" + cid + ") to TRON"
-                        );
+                    case 200:
                         reporter.report(OUT_GRANT, new int[] { cid });
-                        System.out.println(
-                            "[ADAPTER] Grant(" + cid + ") reported successfully"
-                        );
+                        stopPolling(cid); // VIGTIGT: ingen flere retries efter grant
                         break;
-                    case 202: // queued - keep polling
-                    case 409: // already_in_queue - keep polling
-                        sched.schedule(
-                            () -> pollRequest(cid),
-                            50,
-                            TimeUnit.MILLISECONDS
-                        );
+                    case 202:
+                    case 409:
+                        schedulePoll(cid, 50, TimeUnit.MILLISECONDS);
                         break;
                     default:
-                        System.err.println(
-                            "Unexpected status " +
-                                status +
-                                " for request(" +
-                                cid +
-                                "): " +
-                                resp.body()
-                        );
-                        sched.schedule(
-                            () -> pollRequest(cid),
-                            2,
-                            TimeUnit.SECONDS
-                        );
+                        schedulePoll(cid, 50, TimeUnit.MILLISECONDS);
                 }
             })
             .exceptionally(ex -> {
-                System.err.println(
-                    "Request failed for client " + cid + ": " + ex.getMessage()
-                );
-                sched.schedule(() -> pollRequest(cid), 2, TimeUnit.SECONDS);
+                schedulePoll(cid, 50, TimeUnit.MILLISECONDS);
                 return null;
             });
     }
