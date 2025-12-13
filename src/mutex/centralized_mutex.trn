@@ -1,0 +1,5 @@
+input request(requesting_c_id), done(granted_c_id);
+output grant(granted_c_id);
+
+precision 1000000;
+timeout 1000000;
