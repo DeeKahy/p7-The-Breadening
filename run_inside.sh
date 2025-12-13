@@ -136,6 +136,73 @@ fi
 echo -e "${GREEN}✓ Compilation successful${NC}"
 echo ""
 
+# Function to log performance data to CSV
+log_performance_data() {
+    local server_pid=$1
+    local adapter_pid=$2
+    local tron_pid=$3
+
+    # Create individual CSV files with headers
+    echo "Timestamp,CPU%,Memory_MB,Memory%,Threads" > logs/server_performance.csv
+    echo "Timestamp,CPU%,Memory_MB,Memory%,Threads" > logs/adapter_performance.csv
+    echo "Timestamp,CPU%,Memory_MB,Memory%,Threads" > logs/tron_performance.csv
+
+    # Create combined CSV file with all processes
+    echo "Timestamp,Server_CPU%,Server_Memory_MB,Server_Threads,Adapter_CPU%,Adapter_Memory_MB,Adapter_Threads,TRON_CPU%,TRON_Memory_MB,TRON_Threads" > logs/combined_performance.csv
+
+    while true; do
+        # Get current timestamp
+        timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+        # Initialize variables
+        server_cpu="0" server_mem_mb="0" server_threads="0"
+        adapter_cpu="0" adapter_mem_mb="0" adapter_threads="0"
+        tron_cpu="0" tron_mem_mb="0" tron_threads="0"
+
+        # Collect data for Server
+        if ps -p $server_pid > /dev/null 2>&1; then
+            server_data=$(ps -p $server_pid -o %cpu,%mem,rss,nlwp --no-headers 2>/dev/null)
+            if [ -n "$server_data" ]; then
+                server_cpu=$(echo $server_data | awk '{print $1}')
+                mem_pct=$(echo $server_data | awk '{print $2}')
+                server_mem_mb=$(echo $server_data | awk '{printf "%.2f", $3/1024}')
+                server_threads=$(echo $server_data | awk '{print $4}')
+                echo "$timestamp,$server_cpu,$server_mem_mb,$mem_pct,$server_threads" >> logs/server_performance.csv
+            fi
+        fi
+
+        # Collect data for Adapter
+        if ps -p $adapter_pid > /dev/null 2>&1; then
+            adapter_data=$(ps -p $adapter_pid -o %cpu,%mem,rss,nlwp --no-headers 2>/dev/null)
+            if [ -n "$adapter_data" ]; then
+                adapter_cpu=$(echo $adapter_data | awk '{print $1}')
+                mem_pct=$(echo $adapter_data | awk '{print $2}')
+                adapter_mem_mb=$(echo $adapter_data | awk '{printf "%.2f", $3/1024}')
+                adapter_threads=$(echo $adapter_data | awk '{print $4}')
+                echo "$timestamp,$adapter_cpu,$adapter_mem_mb,$mem_pct,$adapter_threads" >> logs/adapter_performance.csv
+            fi
+        fi
+
+        # Collect data for TRON
+        if ps -p $tron_pid > /dev/null 2>&1; then
+            tron_data=$(ps -p $tron_pid -o %cpu,%mem,rss,nlwp --no-headers 2>/dev/null)
+            if [ -n "$tron_data" ]; then
+                tron_cpu=$(echo $tron_data | awk '{print $1}')
+                mem_pct=$(echo $tron_data | awk '{print $2}')
+                tron_mem_mb=$(echo $tron_data | awk '{printf "%.2f", $3/1024}')
+                tron_threads=$(echo $tron_data | awk '{print $4}')
+                echo "$timestamp,$tron_cpu,$tron_mem_mb,$mem_pct,$tron_threads" >> logs/tron_performance.csv
+            fi
+        fi
+
+        # Write combined data
+        echo "$timestamp,$server_cpu,$server_mem_mb,$server_threads,$adapter_cpu,$adapter_mem_mb,$adapter_threads,$tron_cpu,$tron_mem_mb,$tron_threads" >> logs/combined_performance.csv
+
+        # Sample every 1 second
+        sleep 1
+    done
+}
+
 # Function to cleanup on exit
 cleanup() {
     echo -e "\n${YELLOW}Shutting down all processes...${NC}"
@@ -208,10 +275,26 @@ echo -e "  ${SERVER_COLOR}Server:${NC}  logs/server.log"
 echo -e "  ${ADAPTER_COLOR}Adapter:${NC} logs/adapter.log"
 echo -e "  ${TRON_COLOR}TRON:${NC}    logs/tron.log"
 echo ""
+echo "Performance CSV files:"
+echo -e "  ${SERVER_COLOR}Server:${NC}  logs/server_performance.csv"
+echo -e "  ${ADAPTER_COLOR}Adapter:${NC} logs/adapter_performance.csv"
+echo -e "  ${TRON_COLOR}TRON:${NC}    logs/tron_performance.csv"
+echo -e "  ${CYAN}Combined:${NC} logs/combined_performance.csv (all processes in one file)"
+echo ""
 echo "WebSocket endpoint: ws://localhost:5000/ws"
 echo "HTTP status page: http://localhost:5000/"
 echo ""
+
+# Start performance logging in background
+echo -e "${BLUE}Starting performance data collection (1 second intervals)...${NC}"
+log_performance_data "$SERVER_PID" "$ADAPTER_PID" "$TRON_PID" &
+PERF_LOGGER_PID=$!
+echo -e "${GREEN}✓ Performance logging active${NC}"
+echo ""
+
 echo -e "${YELLOW}Press Ctrl+C to stop all processes${NC}"
+echo ""
+echo "Performance data is being saved to CSV files for Excel plotting"
 echo ""
 echo "=== Live Output (color-coded by source) ==="
 echo ""
