@@ -47,15 +47,17 @@ public class MutexAdapter implements Adapter {
     private final Duration reqTimeout = Duration.ofSeconds(3);
 
     private final ScheduledExecutorService sched =
-        Executors.newScheduledThreadPool(2);
+        Executors.newSingleThreadScheduledExecutor();
+
+    // Executors.newScheduledThreadPool(1);
 
     // ── Adapter ⇄ TRON interface ────────────────────────────────────────────
     @Override
     public void configure(Reporter reporter) throws TronException, IOException {
         this.reporter = reporter;
 
-        reporter.setTimeUnit(250_000); // 50 ms per model time unit
-        reporter.setTimeout(1_000_000); // test budget: 100 s
+        reporter.setTimeUnit(100_000); // 50 ms per model time unit
+        reporter.setTimeout(2_000); // test budget: 100 s
 
         // Bind existing *global* int variables – not the template constant `id`!
         IN_REQUEST = reporter.addInput("request");
@@ -95,22 +97,17 @@ public class MutexAdapter implements Adapter {
 
     @Override
     public void perform(int chan, int[] params) {
-        // every bound channel carries ONE integer parameter – the client id
-        int cid = params[0];
+        //int v = params[0];
 
         if (chan == IN_REQUEST) {
+            int cid = params[0];
             stopPolling(cid);
             wantsGrant.put(cid, true);
-            pollRequest(cid);
-            //System.out.println(
-            //    "[ADAPTER] perform: request(" + cid + ") - calling pollRequest"
-            //);
+            sched.execute(() -> pollRequest(cid)); // <-- ikke kald direkte
         } else if (chan == IN_DONE) {
-            stopPolling(cid); // DONE => må ikke poll’e mere
-            sendDone(cid);
-            //System.out.println(
-            //    "[ADAPTER] perform: done(" + cid + ") - calling sendDone"
-            //);
+            int cid = params[0];
+            stopPolling(cid);
+            sched.execute(() -> sendDone(cid)); // <-- ikke kald direkte
         }
     }
 
@@ -125,28 +122,31 @@ public class MutexAdapter implements Adapter {
             .GET()
             .build();
 
-        http
-            .sendAsync(req, HttpResponse.BodyHandlers.ofString())
-            .thenAccept(resp -> {
-                int status = resp.statusCode();
+        try {
+            HttpResponse<String> resp = http.send(
+                req,
+                HttpResponse.BodyHandlers.ofString()
+            );
 
-                switch (status) {
-                    case 200:
-                        reporter.report(OUT_GRANT, new int[] { cid });
-                        stopPolling(cid); // VIGTIGT: ingen flere retries efter grant
-                        break;
-                    case 202:
-                    case 409:
-                        schedulePoll(cid, 50, TimeUnit.MILLISECONDS);
-                        break;
-                    default:
-                        schedulePoll(cid, 50, TimeUnit.MILLISECONDS);
-                }
-            })
-            .exceptionally(ex -> {
-                schedulePoll(cid, 50, TimeUnit.MILLISECONDS);
-                return null;
-            });
+            int status = resp.statusCode();
+
+            if (!wantsGrant.getOrDefault(cid, false)) return;
+
+            switch (status) {
+                case 200:
+                    if (!wantsGrant.getOrDefault(cid, false)) return;
+                    System.out.println("[ADAPTER] REPORT grant(" + cid + ")");
+                    reporter.report(OUT_GRANT, new int[] { cid });
+                    stopPolling(cid);
+                    break;
+                case 202:
+                case 409:
+                default:
+                    schedulePoll(cid, 5, TimeUnit.MILLISECONDS);
+            }
+        } catch (Exception ex) {
+            schedulePoll(cid, 5, TimeUnit.MILLISECONDS);
+        }
     }
 
     // ── done → (maybe retry) ────────────────────────────────────────────────
