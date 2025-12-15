@@ -1,7 +1,5 @@
 # Importing required functions
 import argparse
-import threading
-import time
 from typing import Any, Dict
 
 import requests
@@ -366,5 +364,5 @@ if __name__ == "__main__":
         port=port,
         debug=False,
         use_reloader=False,
-        threaded=True,
+        threaded=False,
     )
