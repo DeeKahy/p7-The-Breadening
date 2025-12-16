@@ -2,17 +2,110 @@
 <!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
 <nta>
 	<declaration>// Place global declarations here.
+broadcast chan observe;
+bool last_observed = true;
+
+broadcast chan start;
+broadcast chan start_election;
+int starter;
+
 broadcast chan request;
 int sender;
 int reciever;
 int type;
 bool reserved;
 
-int CHECK = 0;
-int ANSWER = 1;
-int SHUT_UP = 2;
-int ELECTED = 3;
+const int CHECK   = 0;
+const int ANSWER  = 1;
+const int SHUT_UP = 2;
+const int ELECTED = 3;
+
+const int round_trip_time = 50;
+const int slack = 20000;
 </declaration>
+	<template>
+		<name>Network</name>
+		<parameter>const int N</parameter>
+		<declaration>
+int processes[N] = {0,1,2,3,4};
+int index = 0;
+
+void nextIndex() {
+    index += 1;
+    if(index == N) {
+        index = 0;
+    }
+}</declaration>
+		<location id="id0" x="0" y="0">
+			<name x="-85" y="-17">Awaiting</name>
+		</location>
+		<location id="id1" x="178" y="-17">
+			<name x="195" y="-34">ObserveRequest</name>
+			<committed/>
+		</location>
+		<location id="id2" x="-127" y="93">
+			<committed/>
+		</location>
+		<init ref="id0"/>
+		<transition id="id3">
+			<source ref="id0"/>
+			<target ref="id2"/>
+			<label kind="synchronisation" x="-76" y="93">start_election?</label>
+			<label kind="assignment" x="-76" y="110">starter = index</label>
+			<nail x="-51" y="85"/>
+		</transition>
+		<transition id="id4">
+			<source ref="id2"/>
+			<target ref="id0"/>
+			<label kind="synchronisation" x="-170" y="25">start!</label>
+			<nail x="-102" y="25"/>
+		</transition>
+		<transition id="id5">
+			<source ref="id0"/>
+			<target ref="id0"/>
+			<label kind="assignment" x="-187" y="-178">nextIndex()</label>
+			<nail x="-60" y="-175"/>
+			<nail x="-120" y="-132"/>
+		</transition>
+		<transition id="id6">
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="synchronisation" x="59" y="-102">observe!</label>
+			<label kind="assignment" x="59" y="-85">last_observed = true</label>
+			<nail x="93" y="-68"/>
+		</transition>
+		<transition id="id7">
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="synchronisation" x="68" y="51">request?</label>
+			<label kind="assignment" x="68" y="68">last_observed = false</label>
+			<nail x="110" y="51"/>
+		</transition>
+	</template>
+	<template>
+		<name>ElectionStarter</name>
+		<parameter>const int N</parameter>
+		<declaration>
+clock x;</declaration>
+		<location id="id8" x="0" y="0">
+			<name x="17" y="0">Waiting</name>
+		</location>
+		<location id="id9" x="0" y="-102">
+			<name x="8" y="-136">FireElection</name>
+		</location>
+		<init ref="id9"/>
+		<transition id="id10">
+			<source ref="id9"/>
+			<target ref="id8"/>
+			<label kind="synchronisation" x="-161" y="-76">start_election!</label>
+			<nail x="-34" y="-51"/>
+		</transition>
+		<transition id="id11">
+			<source ref="id8"/>
+			<target ref="id9"/>
+			<nail x="34" y="-51"/>
+		</transition>
+	</template>
 	<template>
 		<name x="5" y="5">Process</name>
 		<parameter>const int id, const int N</parameter>
@@ -20,7 +113,9 @@ int ELECTED = 3;
 clock x;
 
 int processes[N] = {0,1,2,3,4};
-int next_index;
+bool sent_message[N];
+int messages_left;
+int next_reciever = 0;
 
 int recieved_from_id;
 int recieved_request_type;
@@ -28,376 +123,575 @@ int recieved_request_type;
 int leader = -1;
 bool shut_up = false;
 
-void my_index() {
+void ready_electing_messages() {
     int i;
+    messages_left = N;
+    for(i=0; i &lt; N; i++) {
+        sent_message[i] = false;
+        /*if(processes[i] == id) {
+            messages_left -= 1;
+            sent_message[i] = true;
+        } else {
+            sent_message[i] = false;
+        }*/
+    }
+}
+
+void ready_shut_up_messages() {
+    int i;
+    messages_left = N;
     for(i=0; i&lt;N; i++) {
-        if(processes[i] == id) {
-            next_index = i+1;
+        if(processes[i] &lt;= id) {
+            messages_left -= 1;
+            sent_message[i] = true;
+        } else {
+            sent_message[i] = false;
         }
     }
+}
+
+void get_next_reciever() {
+    if(next_reciever == N-1) {
+        next_reciever = 0;
+    } else {
+        next_reciever += 1;
+    }
 }</declaration>
-		<location id="id0" x="-68" y="-8">
+		<location id="id12" x="-68" y="-8">
 			<name x="-59" y="-51">Idle</name>
-			<label kind="invariant" x="-59" y="-34">x &lt;= 30</label>
 		</location>
-		<location id="id1" x="289" y="-8">
+		<location id="id13" x="289" y="-8">
 			<name x="306" y="-8">Requested</name>
-			<label kind="invariant" x="306" y="8">x &lt;= 1</label>
 			<committed/>
 		</location>
-		<location id="id2" x="824" y="102">
-			<name x="833" y="76">Electing</name>
-			<label kind="invariant" x="814" y="119">x &lt;= 30</label>
+		<location id="id14" x="824" y="102">
+			<name x="833" y="59">Electing</name>
+			<label kind="invariant" x="833" y="68">x &lt;= round_trip_time+slack</label>
 		</location>
-		<location id="id3" x="883" y="246">
+		<location id="id15" x="883" y="246">
 			<committed/>
 		</location>
-		<location id="id4" x="1411" y="102">
-			<name x="1377" y="119">Elected</name>
-			<label kind="invariant" x="1376" y="136">x &lt;= 1</label>
+		<location id="id16" x="1411" y="102">
+			<name x="1258" y="102">Elected</name>
+			<label kind="invariant" x="1258" y="119">x &lt;= round_trip_time+slack</label>
 		</location>
-		<location id="id5" x="1538" y="102">
+		<location id="id17" x="-246" y="-76">
+			<name x="-238" y="-110">Leader</name>
+			<urgent/>
+		</location>
+		<location id="id18" x="620" y="102">
 			<committed/>
 		</location>
-		<location id="id6" x="1411" y="-119">
-			<name x="1419" y="-144">Leader</name>
-		</location>
-		<location id="id7" x="-442" y="-8">
-			<name x="-501" y="-17">Check</name>
-			<label kind="invariant" x="-452" y="9">x &lt;= 30</label>
-		</location>
-		<location id="id8" x="-280" y="-8">
-			<committed/>
-		</location>
-		<location id="id9" x="824" y="-527">
-			<name x="815" y="-578">Answer</name>
-			<label kind="invariant" x="815" y="-561">x &lt;= 25</label>
-		</location>
-		<location id="id10" x="1411" y="-527">
-			<committed/>
-		</location>
-		<location id="id11" x="620" y="102">
-			<committed/>
-		</location>
-		<location id="id12" x="1232" y="34">
-			<committed/>
-		</location>
-		<location id="id13" x="824" y="-119">
-			<name x="714" y="-110">Leader_Requested</name>
-			<label kind="invariant" x="799" y="-93">x &lt;= 1</label>
-			<committed/>
-		</location>
-		<location id="id14" x="289" y="102">
+		<location id="id19" x="289" y="102">
 			<name x="246" y="110">Shut_Up</name>
-			<label kind="invariant" x="246" y="127">x &lt;= 1</label>
 			<committed/>
 		</location>
-		<init ref="id0"/>
-		<transition id="id15">
-			<source ref="id0"/>
-			<target ref="id0"/>
-			<label kind="guard" x="-348" y="34">x &gt;= 30 &amp;&amp; (reserved || shut_up)</label>
-			<label kind="assignment" x="-348" y="51">x = 0</label>
-			<nail x="-127" y="17"/>
-			<nail x="-102" y="42"/>
-		</transition>
-		<transition id="id16">
-			<source ref="id1"/>
-			<target ref="id14"/>
-			<label kind="guard" x="289" y="34">recieved_request_type != ELECTED &amp;&amp;
-recieved_request_type != ANSWER</label>
-			<label kind="assignment" x="289" y="47">x = 0</label>
-		</transition>
-		<transition id="id17">
-			<source ref="id13"/>
-			<target ref="id10"/>
-			<label kind="guard" x="1062" y="-289">recieved_request_type == CHECK &amp;&amp;
-not reserved</label>
-			<label kind="assignment" x="1062" y="-255">type = ANSWER,
-reciever = recieved_from_id,
-sender = id,
-reserved = true</label>
-		</transition>
-		<transition id="id18">
-			<source ref="id9"/>
-			<target ref="id13"/>
-			<label kind="guard" x="501" y="-391">reciever == id</label>
-			<label kind="synchronisation" x="501" y="-374">request?</label>
-			<label kind="assignment" x="501" y="-357">recieved_from_id = sender,
-recieved_request_type = type,
-x = 0</label>
-			<nail x="756" y="-331"/>
-		</transition>
-		<transition id="id19">
-			<source ref="id1"/>
-			<target ref="id1"/>
-			<label kind="guard" x="340" y="-153">reciever == id</label>
-			<label kind="synchronisation" x="340" y="-136">request?</label>
-			<label kind="assignment" x="340" y="-119">recieved_from_id = sender,
-recieved_request_type = type,
-x = 0</label>
-			<nail x="357" y="-42"/>
-			<nail x="314" y="-68"/>
-		</transition>
-		<transition id="id20">
-			<source ref="id13"/>
-			<target ref="id1"/>
-			<label kind="guard" x="561" y="-68">recieved_request_type != CHECK</label>
-			<label kind="assignment" x="561" y="-59">x = 0</label>
-		</transition>
-		<transition id="id21">
-			<source ref="id12"/>
-			<target ref="id4"/>
-			<label kind="synchronisation" x="1096" y="42">request!</label>
-			<label kind="assignment" x="1096" y="59">reserved = false,
-x = 0</label>
-			<nail x="1249" y="76"/>
-		</transition>
+		<location id="id20" x="1538" y="161">
+			<committed/>
+		</location>
+		<location id="id21" x="357" y="102">
+			<label kind="invariant" x="374" y="76">x &lt;= round_trip_time+slack</label>
+		</location>
+		<init ref="id12"/>
 		<transition id="id22">
-			<source ref="id4"/>
+			<source ref="id17"/>
 			<target ref="id12"/>
-			<label kind="guard" x="1156" y="-93">reciever == id</label>
-			<label kind="synchronisation" x="1156" y="-76">request?</label>
-			<label kind="assignment" x="1156" y="-59">type = ELECTED, 
-reciever = sender,
-sender = id,
-reserved = true</label>
-			<nail x="1309" y="34"/>
+			<nail x="-170" y="-8"/>
 		</transition>
 		<transition id="id23">
-			<source ref="id14"/>
-			<target ref="id11"/>
-			<label kind="guard" x="314" y="102">not reserved &amp;&amp;
-id &gt; recieved_from_id &amp;&amp;
+			<source ref="id12"/>
+			<target ref="id17"/>
+			<label kind="guard" x="-195" y="-93">leader == id</label>
+			<nail x="-153" y="-76"/>
+		</transition>
+		<transition id="id24">
+			<source ref="id21"/>
+			<target ref="id13"/>
+			<label kind="guard" x="569" y="-8">reciever == id</label>
+			<label kind="synchronisation" x="569" y="8">request?</label>
+			<label kind="assignment" x="569" y="25">recieved_from_id = sender,
+recieved_request_type = type,
+x = 0</label>
+			<nail x="357" y="-8"/>
+		</transition>
+		<transition id="id25">
+			<source ref="id19"/>
+			<target ref="id21"/>
+			<label kind="guard" x="153" y="127">id &gt; recieved_from_id &amp;&amp;
 not shut_up</label>
-			<label kind="assignment" x="314" y="161">type = SHUT_UP,
+			<label kind="assignment" x="307" y="-4">x = 0</label>
+		</transition>
+		<transition id="id26">
+			<source ref="id20"/>
+			<target ref="id16"/>
+			<label kind="synchronisation" x="1249" y="170">request!</label>
+			<label kind="assignment" x="1249" y="187">reserved = false,
+sent_message[next_reciever] = true,
+x = 0</label>
+			<nail x="1411" y="161"/>
+		</transition>
+		<transition id="id27">
+			<source ref="id16"/>
+			<target ref="id20"/>
+			<label kind="guard" x="1555" y="93">not reserved &amp;&amp;
+last_observed &amp;&amp;
+messages_left &gt; 0 &amp;&amp;
+not sent_message[next_reciever]</label>
+			<label kind="assignment" x="1555" y="170">type = ELECTED,
+reciever = processes[next_reciever],
+sender = id,
+messages_left -= 1,
+reserved = true</label>
+			<nail x="1538" y="102"/>
+		</transition>
+		<transition id="id28">
+			<source ref="id16"/>
+			<target ref="id16"/>
+			<label kind="guard" x="1462" y="8">messages_left &gt; 0</label>
+			<label kind="assignment" x="1462" y="25">get_next_reciever()</label>
+			<nail x="1479" y="59"/>
+			<nail x="1445" y="34"/>
+		</transition>
+		<transition id="id29">
+			<source ref="id14"/>
+			<target ref="id14"/>
+			<label kind="guard" x="909" y="0">messages_left &gt; 0</label>
+			<label kind="assignment" x="909" y="17">get_next_reciever()</label>
+			<nail x="952" y="51"/>
+			<nail x="884" y="17"/>
+		</transition>
+		<transition id="id30">
+			<source ref="id12"/>
+			<target ref="id14"/>
+			<label kind="guard" x="170" y="263">starter == id</label>
+			<label kind="synchronisation" x="170" y="280">start?</label>
+			<label kind="assignment" x="170" y="297">ready_shut_up_messages(),
+x = 0</label>
+			<nail x="-127" y="25"/>
+			<nail x="-127" y="254"/>
+			<nail x="765" y="254"/>
+		</transition>
+		<transition id="id31">
+			<source ref="id13"/>
+			<target ref="id19"/>
+			<label kind="guard" x="297" y="42">recieved_request_type != ELECTED</label>
+		</transition>
+		<transition id="id32">
+			<source ref="id21"/>
+			<target ref="id18"/>
+			<label kind="guard" x="374" y="110">not reserved &amp;&amp;
+last_observed</label>
+			<label kind="assignment" x="382" y="144">type = SHUT_UP,
 reciever = recieved_from_id,
 sender = id,
 reserved = true</label>
-			<nail x="442" y="102"/>
-			<nail x="450" y="102"/>
 		</transition>
-		<transition id="id24">
-			<source ref="id14"/>
-			<target ref="id0"/>
+		<transition id="id33">
+			<source ref="id19"/>
+			<target ref="id12"/>
 			<label kind="guard" x="-59" y="102">recieved_from_id &gt; id || shut_up</label>
-			<label kind="assignment" x="-59" y="119">shut_up = true,
-x = 0</label>
+			<label kind="assignment" x="-59" y="119">shut_up = true</label>
 			<nail x="221" y="102"/>
 			<nail x="221" y="102"/>
 			<nail x="-68" y="102"/>
 		</transition>
-		<transition id="id25">
-			<source ref="id11"/>
-			<target ref="id2"/>
+		<transition id="id34">
+			<source ref="id18"/>
+			<target ref="id14"/>
 			<label kind="synchronisation" x="637" y="102">request!</label>
 			<label kind="assignment" x="637" y="119">reserved = false,
+ready_shut_up_messages(),
 x = 0</label>
-		</transition>
-		<transition id="id26">
-			<source ref="id7"/>
-			<target ref="id2"/>
-			<label kind="guard" x="0" y="280">x &gt;= 30</label>
-			<label kind="assignment" x="0" y="297">x = 0</label>
-			<nail x="-442" y="280"/>
-			<nail x="739" y="280"/>
-		</transition>
-		<transition id="id27">
-			<source ref="id1"/>
-			<target ref="id0"/>
-			<label kind="guard" x="-59" y="-178">recieved_request_type == ANSWER</label>
-			<label kind="assignment" x="-59" y="-161">x = 0</label>
-			<nail x="221" y="-178"/>
-			<nail x="-68" y="-178"/>
-		</transition>
-		<transition id="id28">
-			<source ref="id7"/>
-			<target ref="id1"/>
-			<label kind="guard" x="-297" y="-289">reciever == id</label>
-			<label kind="synchronisation" x="-297" y="-272">request?</label>
-			<label kind="assignment" x="-297" y="-255">recieved_from_id = sender,
-recieved_request_type = type,
-x = 0</label>
-			<nail x="-442" y="-195"/>
-			<nail x="289" y="-195"/>
-		</transition>
-		<transition id="id29">
-			<source ref="id10"/>
-			<target ref="id6"/>
-			<label kind="synchronisation" x="1420" y="-357">request!</label>
-			<label kind="assignment" x="1419" y="-340">reserved = false</label>
-		</transition>
-		<transition id="id30">
-			<source ref="id9"/>
-			<target ref="id10"/>
-			<label kind="guard" x="909" y="-629">not reserved</label>
-			<label kind="assignment" x="909" y="-612">type = ANSWER,
-reciever = recieved_from_id,
-sender = id,
-reserved = true</label>
-		</transition>
-		<transition id="id31">
-			<source ref="id13"/>
-			<target ref="id9"/>
-			<label kind="guard" x="824" y="-357">recieved_request_type == CHECK</label>
-		</transition>
-		<transition id="id32">
-			<source ref="id6"/>
-			<target ref="id13"/>
-			<label kind="guard" x="858" y="-119">reciever == id</label>
-			<label kind="synchronisation" x="858" y="-102">request?</label>
-			<label kind="assignment" x="858" y="-85">recieved_from_id = sender,
-recieved_request_type = type,
-x = 0</label>
-			<nail x="1403" y="-119"/>
-		</transition>
-		<transition id="id33">
-			<source ref="id5"/>
-			<target ref="id4"/>
-			<label kind="guard" x="1555" y="76">processes[next_index] == id</label>
-			<label kind="assignment" x="1555" y="93">reserved = false,
-next_index += 1,
-x = 0</label>
-			<nail x="1538" y="119"/>
-			<nail x="1538" y="110"/>
-			<nail x="1538" y="136"/>
-			<nail x="1470" y="135"/>
-			<nail x="1428" y="110"/>
-		</transition>
-		<transition id="id34">
-			<source ref="id2"/>
-			<target ref="id1"/>
-			<label kind="guard" x="569" y="-17">reciever == id</label>
-			<label kind="synchronisation" x="569" y="0">request?</label>
-			<label kind="assignment" x="569" y="17">recieved_from_id = sender,
-recieved_request_type = type,
-x = 0</label>
-			<nail x="824" y="-17"/>
 		</transition>
 		<transition id="id35">
-			<source ref="id0"/>
-			<target ref="id1"/>
-			<label kind="guard" x="17" y="-136">reciever == id</label>
-			<label kind="synchronisation" x="17" y="-119">request?</label>
-			<label kind="assignment" x="17" y="-102">recieved_from_id = sender,
+			<source ref="id14"/>
+			<target ref="id13"/>
+			<label kind="guard" x="569" y="-8">reciever == id</label>
+			<label kind="synchronisation" x="569" y="8">request?</label>
+			<label kind="assignment" x="569" y="25">recieved_from_id = sender,
 recieved_request_type = type,
-my_index(),
+x = 0</label>
+			<nail x="824" y="85"/>
+			<nail x="824" y="-8"/>
+		</transition>
+		<transition id="id36">
+			<source ref="id12"/>
+			<target ref="id13"/>
+			<label kind="guard" x="17" y="-170">reciever == id</label>
+			<label kind="synchronisation" x="17" y="-153">request?</label>
+			<label kind="assignment" x="17" y="-136">recieved_from_id = sender,
+recieved_request_type = type,
 x = 0</label>
 			<nail x="119" y="-42"/>
 		</transition>
-		<transition id="id36">
-			<source ref="id8"/>
-			<target ref="id7"/>
-			<label kind="synchronisation" x="-425" y="-68">request!</label>
-			<label kind="assignment" x="-425" y="-51">reserved = false,
-x = 0</label>
-		</transition>
 		<transition id="id37">
-			<source ref="id0"/>
-			<target ref="id8"/>
-			<label kind="guard" x="-255" y="-161">x &gt;= 30 &amp;&amp;
-not reserved &amp;&amp;
-not shut_up</label>
-			<label kind="assignment" x="-255" y="-110">type = CHECK,
-reciever = leader,
-sender = id,
-reserved = true,
-my_index()</label>
+			<source ref="id16"/>
+			<target ref="id12"/>
+			<label kind="guard" x="1420" y="-93">messages_left == 0</label>
+			<label kind="assignment" x="1420" y="-76">leader = id</label>
+			<nail x="1411" y="-68"/>
+			<nail x="-68" y="-76"/>
 		</transition>
 		<transition id="id38">
-			<source ref="id4"/>
-			<target ref="id6"/>
-			<label kind="guard" x="1420" y="-93">next_index &gt;= N</label>
-			<label kind="assignment" x="1420" y="-76">my_index(),
-leader = id</label>
-		</transition>
-		<transition id="id39">
-			<source ref="id5"/>
-			<target ref="id4"/>
-			<label kind="guard" x="1436" y="153">processes[next_index] != id</label>
-			<label kind="synchronisation" x="1436" y="170">request!</label>
-			<label kind="assignment" x="1436" y="187">reserved = false,
-next_index += 1,
-x = 0</label>
-			<nail x="1470" y="136"/>
-		</transition>
-		<transition id="id40">
-			<source ref="id4"/>
-			<target ref="id5"/>
-			<label kind="guard" x="1488" y="-42">not reserved &amp;&amp;
-next_index &lt; N</label>
-			<label kind="assignment" x="1488" y="0">type = ELECTED, 
-reciever = processes[next_index],
-sender = id,
-reserved = true</label>
-			<nail x="1470" y="76"/>
-		</transition>
-		<transition id="id41">
-			<source ref="id2"/>
-			<target ref="id4"/>
-			<label kind="guard" x="935" y="102">(reciever != id &amp;&amp; not reserved) &amp;&amp;
-next_index&gt;=N &amp;&amp;
-x &gt;= 30</label>
-			<label kind="assignment" x="935" y="153">next_index = 0,
+			<source ref="id14"/>
+			<target ref="id16"/>
+			<label kind="guard" x="935" y="102">(reciever != id || not reserved) &amp;&amp;
+messages_left == 0 &amp;&amp;
+x &gt;= round_trip_time</label>
+			<label kind="assignment" x="935" y="161">ready_electing_messages(),
 x = 0</label>
 			<nail x="875" y="102"/>
 		</transition>
-		<transition id="id42">
-			<source ref="id3"/>
-			<target ref="id2"/>
+		<transition id="id39">
+			<source ref="id15"/>
+			<target ref="id14"/>
 			<label kind="synchronisation" x="790" y="255">request!</label>
 			<label kind="assignment" x="790" y="272">reserved = false,
+sent_message[next_reciever] = true,
 x = 0</label>
 			<nail x="824" y="246"/>
 		</transition>
-		<transition id="id43">
-			<source ref="id2"/>
-			<target ref="id3"/>
-			<label kind="guard" x="960" y="246">not reserved &amp;&amp; next_index &lt; N</label>
-			<label kind="assignment" x="960" y="263">type = SHUT_UP,
-reciever = processes[next_index],
+		<transition id="id40">
+			<source ref="id14"/>
+			<target ref="id15"/>
+			<label kind="guard" x="960" y="212">not reserved &amp;&amp;
+last_observed &amp;&amp;
+messages_left &gt; 0 &amp;&amp;
+not sent_message[next_reciever]</label>
+			<label kind="assignment" x="960" y="289">type = SHUT_UP,
+reciever = processes[next_reciever],
 sender = id,
-next_index += 1,
+messages_left -= 1,
 reserved = true</label>
 			<nail x="960" y="246"/>
 			<nail x="926" y="246"/>
 		</transition>
-		<transition id="id44">
-			<source ref="id1"/>
-			<target ref="id0"/>
+		<transition id="id41">
+			<source ref="id13"/>
+			<target ref="id12"/>
 			<label kind="guard" x="0" y="16">recieved_request_type == ELECTED</label>
 			<label kind="assignment" x="0" y="34">leader = recieved_from_id,
-shut_up = false,
-my_index(),
-x = 0</label>
+shut_up = false</label>
+			<nail x="127" y="17"/>
+			<nail x="119" y="17"/>
+		</transition>
+	</template>
+	<template>
+		<name x="5" y="5">Timeless_Process</name>
+		<parameter>const int id, const int N</parameter>
+		<declaration>// Place local declarations here.
+int processes[N] = {0,1,2,3,4};
+bool sent_message[N];
+int messages_left;
+int next_reciever = 0;
+
+int recieved_from_id;
+int recieved_request_type;
+
+int leader = -1;
+bool shut_up = false;
+
+void ready_electing_messages() {
+    int i;
+    messages_left = N;
+    for(i=0; i &lt; N; i++) {
+        sent_message[i] = false;
+        /*if(processes[i] == id) {
+            messages_left -= 1;
+            sent_message[i] = true;
+        } else {
+            sent_message[i] = false;
+        }*/
+    }
+}
+
+void ready_shut_up_messages() {
+    int i;
+    messages_left = N;
+    for(i=0; i&lt;N; i++) {
+        if(processes[i] &lt;= id) {
+            messages_left -= 1;
+            sent_message[i] = true;
+        } else {
+            sent_message[i] = false;
+        }
+    }
+}
+
+void get_next_reciever() {
+    if(next_reciever == N-1) {
+        next_reciever = 0;
+    } else {
+        next_reciever += 1;
+    }
+}</declaration>
+		<location id="id42" x="-68" y="-8">
+			<name x="-59" y="-51">Idle</name>
+		</location>
+		<location id="id43" x="289" y="-8">
+			<name x="306" y="-8">Requested</name>
+			<committed/>
+		</location>
+		<location id="id44" x="824" y="102">
+			<name x="833" y="59">Electing</name>
+		</location>
+		<location id="id45" x="883" y="246">
+			<committed/>
+		</location>
+		<location id="id46" x="1411" y="102">
+			<name x="1258" y="102">Elected</name>
+		</location>
+		<location id="id47" x="-246" y="-76">
+			<name x="-238" y="-110">Leader</name>
+			<urgent/>
+		</location>
+		<location id="id48" x="620" y="102">
+			<committed/>
+		</location>
+		<location id="id49" x="289" y="102">
+			<name x="246" y="110">Shut_Up</name>
+			<committed/>
+		</location>
+		<location id="id50" x="1538" y="161">
+			<committed/>
+		</location>
+		<location id="id51" x="357" y="102">
+		</location>
+		<init ref="id42"/>
+		<transition id="id52">
+			<source ref="id47"/>
+			<target ref="id42"/>
+			<nail x="-170" y="-8"/>
+		</transition>
+		<transition id="id53">
+			<source ref="id42"/>
+			<target ref="id47"/>
+			<label kind="guard" x="-195" y="-93">leader == id</label>
+			<nail x="-153" y="-76"/>
+		</transition>
+		<transition id="id54">
+			<source ref="id51"/>
+			<target ref="id43"/>
+			<label kind="guard" x="569" y="-8">reciever == id</label>
+			<label kind="synchronisation" x="569" y="8">request?</label>
+			<label kind="assignment" x="569" y="25">recieved_from_id = sender,
+recieved_request_type = type</label>
+			<nail x="357" y="-8"/>
+		</transition>
+		<transition id="id55">
+			<source ref="id49"/>
+			<target ref="id51"/>
+			<label kind="guard" x="153" y="127">id &gt; recieved_from_id &amp;&amp;
+not shut_up</label>
+		</transition>
+		<transition id="id56">
+			<source ref="id50"/>
+			<target ref="id46"/>
+			<label kind="synchronisation" x="1249" y="170">request!</label>
+			<label kind="assignment" x="1249" y="187">reserved = false,
+sent_message[next_reciever] = true</label>
+			<nail x="1411" y="161"/>
+		</transition>
+		<transition id="id57">
+			<source ref="id46"/>
+			<target ref="id50"/>
+			<label kind="guard" x="1555" y="93">not reserved &amp;&amp;
+last_observed &amp;&amp;
+messages_left &gt; 0 &amp;&amp;
+not sent_message[next_reciever]</label>
+			<label kind="assignment" x="1555" y="170">type = ELECTED,
+reciever = processes[next_reciever],
+sender = id,
+messages_left -= 1,
+reserved = true</label>
+			<nail x="1538" y="102"/>
+		</transition>
+		<transition id="id58">
+			<source ref="id46"/>
+			<target ref="id46"/>
+			<label kind="guard" x="1462" y="8">messages_left &gt; 0</label>
+			<label kind="assignment" x="1462" y="25">get_next_reciever()</label>
+			<nail x="1479" y="59"/>
+			<nail x="1445" y="34"/>
+		</transition>
+		<transition id="id59">
+			<source ref="id44"/>
+			<target ref="id44"/>
+			<label kind="guard" x="909" y="0">messages_left &gt; 0</label>
+			<label kind="assignment" x="909" y="17">get_next_reciever()</label>
+			<nail x="952" y="51"/>
+			<nail x="884" y="17"/>
+		</transition>
+		<transition id="id60">
+			<source ref="id42"/>
+			<target ref="id44"/>
+			<label kind="guard" x="170" y="263">starter == id</label>
+			<label kind="synchronisation" x="170" y="280">start?</label>
+			<label kind="assignment" x="170" y="297">ready_shut_up_messages()</label>
+			<nail x="-127" y="25"/>
+			<nail x="-127" y="254"/>
+			<nail x="765" y="254"/>
+		</transition>
+		<transition id="id61">
+			<source ref="id43"/>
+			<target ref="id49"/>
+			<label kind="guard" x="297" y="42">recieved_request_type != ELECTED</label>
+		</transition>
+		<transition id="id62">
+			<source ref="id51"/>
+			<target ref="id48"/>
+			<label kind="guard" x="374" y="110">not reserved &amp;&amp;
+last_observed</label>
+			<label kind="assignment" x="382" y="144">type = SHUT_UP,
+reciever = recieved_from_id,
+sender = id,
+reserved = true</label>
+		</transition>
+		<transition id="id63">
+			<source ref="id49"/>
+			<target ref="id42"/>
+			<label kind="guard" x="-59" y="102">recieved_from_id &gt; id || shut_up</label>
+			<label kind="assignment" x="-59" y="119">shut_up = true</label>
+			<nail x="221" y="102"/>
+			<nail x="221" y="102"/>
+			<nail x="-68" y="102"/>
+		</transition>
+		<transition id="id64">
+			<source ref="id48"/>
+			<target ref="id44"/>
+			<label kind="synchronisation" x="637" y="102">request!</label>
+			<label kind="assignment" x="637" y="119">reserved = false,
+ready_shut_up_messages()</label>
+		</transition>
+		<transition id="id65">
+			<source ref="id44"/>
+			<target ref="id43"/>
+			<label kind="guard" x="569" y="-8">reciever == id</label>
+			<label kind="synchronisation" x="569" y="8">request?</label>
+			<label kind="assignment" x="569" y="25">recieved_from_id = sender,
+recieved_request_type = type</label>
+			<nail x="824" y="85"/>
+			<nail x="824" y="-8"/>
+		</transition>
+		<transition id="id66">
+			<source ref="id42"/>
+			<target ref="id43"/>
+			<label kind="guard" x="17" y="-170">reciever == id</label>
+			<label kind="synchronisation" x="17" y="-153">request?</label>
+			<label kind="assignment" x="17" y="-136">recieved_from_id = sender,
+recieved_request_type = type</label>
+			<nail x="119" y="-42"/>
+		</transition>
+		<transition id="id67">
+			<source ref="id46"/>
+			<target ref="id42"/>
+			<label kind="guard" x="1420" y="-93">messages_left == 0</label>
+			<label kind="assignment" x="1420" y="-76">leader = id</label>
+			<nail x="1411" y="-68"/>
+			<nail x="-68" y="-76"/>
+		</transition>
+		<transition id="id68">
+			<source ref="id44"/>
+			<target ref="id46"/>
+			<label kind="guard" x="935" y="102">(reciever != id || not reserved) &amp;&amp;
+messages_left == 0</label>
+			<label kind="assignment" x="935" y="161">ready_electing_messages()</label>
+			<nail x="875" y="102"/>
+		</transition>
+		<transition id="id69">
+			<source ref="id45"/>
+			<target ref="id44"/>
+			<label kind="synchronisation" x="790" y="255">request!</label>
+			<label kind="assignment" x="790" y="272">reserved = false,
+sent_message[next_reciever] = true</label>
+			<nail x="824" y="246"/>
+		</transition>
+		<transition id="id70">
+			<source ref="id44"/>
+			<target ref="id45"/>
+			<label kind="guard" x="960" y="212">not reserved &amp;&amp;
+last_observed &amp;&amp;
+messages_left &gt; 0 &amp;&amp;
+not sent_message[next_reciever]</label>
+			<label kind="assignment" x="960" y="289">type = SHUT_UP,
+reciever = processes[next_reciever],
+sender = id,
+messages_left -= 1,
+reserved = true</label>
+			<nail x="960" y="246"/>
+			<nail x="926" y="246"/>
+		</transition>
+		<transition id="id71">
+			<source ref="id43"/>
+			<target ref="id42"/>
+			<label kind="guard" x="0" y="16">recieved_request_type == ELECTED</label>
+			<label kind="assignment" x="0" y="34">leader = recieved_from_id,
+shut_up = false</label>
 			<nail x="127" y="17"/>
 			<nail x="119" y="17"/>
 		</transition>
 	</template>
 	<system>// Place template instantiations here.
-P0 = Process(0, 5);
-P1 = Process(1, 5);
-P2 = Process(2, 5);
-P3 = Process(3, 5);
-P4 = Process(4, 5);
+ES = ElectionStarter(5);
+N = Network(5);
+// P0 = Process(0, 5);
+// P1 = Process(1, 5);
+// P2 = Process(2, 5);
+// P3 = Process(3, 5);
+// P4 = Process(4, 5);
+
+P0 = Timeless_Process(0, 5);
+P1 = Timeless_Process(1, 5);
+P2 = Timeless_Process(2, 5);
+P3 = Timeless_Process(3, 5);
+P4 = Timeless_Process(4, 5);
 // List one or more processes to be composed into a system.
-system P0, P1, P2, P3, P4;
+system ES, N, P0, P1, P2, P3, P4;
 </system>
 	<queries>
 		<query>
 			<formula>A[] not deadlock</formula>
 			<comment/>
+			<option key="--search-order" value="1"/>
 			<option key="--diagnostic" value="1"/>
-			<result outcome="success" type="quality" timestamp="2025-11-28 10:48:33 +0100">
-				<option key="--diagnostic" value="1"/>
-			</result>
 		</query>
 		<query>
 			<formula>A[] (P0.x &lt; 90000)</formula>
 			<comment/>
 			<option key="--diagnostic" value="1"/>
-			<result outcome="success" type="quality" timestamp="2025-11-28 10:48:10 +0100">
+			<result outcome="failure" type="quality" timestamp="2025-12-14 21:42:11 +0100">
 				<option key="--diagnostic" value="1"/>
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; P4.Leader</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-12-14 23:29:12 +0100">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; P3.Leader</formula>
+			<comment/>
+			<option key="--diagnostic" value="1"/>
+		</query>
+		<query>
+			<formula>E&lt;&gt; P2.Leader</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-12-14 20:16:42 +0100">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; P1.Leader</formula>
+			<comment/>
+			<option key="--diagnostic" value="1"/>
+			<result outcome="success" type="quality" timestamp="2025-12-14 20:16:53 +0100">
+				<option key="--diagnostic" value="1"/>
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; P0.Leader</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2025-12-14 20:23:48 +0100">
 			</result>
 		</query>
 	</queries>

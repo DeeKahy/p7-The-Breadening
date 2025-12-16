@@ -1,0 +1,94 @@
+services:
+  bully0:
+    build: .
+    container_name: bully0
+    command:
+      - "--id"
+      - "0"
+      - "--processes"
+      - "0,1,2,3,4"
+      - "--round-trip-time"
+      - "2.5"
+      - "--peer-map"
+      - "0=bully0:5000,1=bully1:5001,2=bully2:5002,3=bully3:5003,4=bully4:5004"
+      - "--adapter-url=http://host.docker.internal:6000"
+    ports:
+      - "5000:5000"
+    networks:
+      - bully_net
+
+  bully1:
+    build: .
+    container_name: bully1
+    command:
+      - "--id"
+      - "1"
+      - "--processes"
+      - "0,1,2,3,4"
+      - "--round-trip-time"
+      - "2.5"
+      - "--peer-map"
+      - "0=bully0:5000,1=bully1:5001,2=bully2:5002,3=bully3:5003,4=bully4:5004"
+      - "--adapter-url=http://host.docker.internal:6000"
+    ports:
+      - "5001:5001"
+    networks:
+      - bully_net
+
+  bully2:
+    build: .
+    container_name: bully2
+    command:
+      - "--id"
+      - "2"
+      - "--processes"
+      - "0,1,2,3,4"
+      - "--round-trip-time"
+      - "2.5"
+      - "--peer-map"
+      - "0=bully0:5000,1=bully1:5001,2=bully2:5002,3=bully3:5003,4=bully4:5004"
+      - "--adapter-url=http://host.docker.internal:6000"
+    ports:
+      - "5002:5002"
+    networks:
+      - bully_net
+
+  bully3:
+    build: .
+    container_name: bully3
+    command:
+      - "--id"
+      - "3"
+      - "--processes"
+      - "0,1,2,3,4"
+      - "--round-trip-time"
+      - "2.5"
+      - "--peer-map"
+      - "0=bully0:5000,1=bully1:5001,2=bully2:5002,3=bully3:5003,4=bully4:5004"
+      - "--adapter-url=http://host.docker.internal:6000"
+    ports:
+      - "5003:5003"
+    networks:
+      - bully_net
+
+  bully4:
+    build: .
+    container_name: bully4
+    command:
+      - "--id"
+      - "4"
+      - "--processes"
+      - "0,1,2,3,4"
+      - "--round-trip-time"
+      - "2.5"
+      - "--peer-map"
+      - "0=bully0:5000,1=bully1:5001,2=bully2:5002,3=bully3:5003,4=bully4:5004"
+      - "--adapter-url=http://host.docker.internal:6000"
+    ports:
+      - "5004:5004"
+    networks:
+      - bully_net
+
+networks:
+  bully_net:
+    driver: bridge

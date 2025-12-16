@@ -1,0 +1,5 @@
+input start_election(starter);
+output observe(sender,reciever,type);
+
+precision 50000;
+timeout 72000;

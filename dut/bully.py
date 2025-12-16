@@ -1,488 +1,449 @@
+from flask import Flask, request, jsonify
+import argparse
 import threading
 import time
-from enum import Enum
-from typing import Any, Dict, List, Optional
-
 import requests
-from flask import Flask, jsonify
+from typing import Dict, Any
 
+HTTP_TIMEOUT = 0.1
 
-class MessageType(Enum):
-    ELECTION = "ELECTION"
-    OK = "OK"
-    COORDINATOR = "COORDINATOR"
-
-
-class Message:
+class BullyProcess:
     def __init__(
         self,
-        msg_type: MessageType,
-        sender_id: int,
-        payload: Optional[Dict[str, Any]] = None,
+        process_id: int,
+        processes: Dict[int, str],
+        round_trip_time: float,
+        adapter_url: str | None = None,
     ):
-        self.type = msg_type
-        self.sender_id = sender_id
-        self.payload = payload or {}
+        self.id = process_id
+        self.adapter_url = adapter_url
+        self.known_processes = processes  # id -> base URL (without path)
+        self.processes = sorted(self.known_processes.keys())
+        self.N = len(self.processes)
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "type": self.type.value,
-            "sender": int(self.sender_id),
-            "payload": self.payload,
-        }
+        if self.id not in self.processes:
+            raise ValueError(f"My id {self.id} is not in processes list {self.processes}")
 
-    @staticmethod
-    def from_dict(d: Dict[str, Any]) -> "Message":
-        """Create message from dictionary."""
-        msg_type = MessageType(d["type"])
-        return Message(msg_type, int(d["sender"]), d.get("payload", {}))
+        self.index = self.processes.index(self.id)
 
-    def __repr__(self) -> str:
-        return f"Message({self.type}, from={self.sender_id}, payload={self.payload})"
+        # Start with the highest ID as initial leader (typical Bully assumption)
+        self.leader = -1
 
+        self.round_trip_time = round_trip_time
+        self.shut_up = False
+        self.coordinator_alive = False
+        self.electing = False
 
-class AdapterInterface:
-    def send(
-        self, receiver_id: int, message_dict: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        raise NotImplementedError(
-            "Adapter needs to implement send(receiver_id, message_dict)"
-        )
-
-    def broadcast(self, message_dict: Dict[str, Any]) -> List[Dict[str, Any]]:
-        raise NotImplementedError("Adapter must implement broadcast(message_dict)")
-
-
-# Global list of known client IDs
-# These represent the UPPAAL/Tron clients that this election process will communicate with
-KNOWN_CLIENTS: List[int] = []
-
-
-class BullyElectionProcess:
-    def __init__(self, process_id: int, adapter: Optional[AdapterInterface] = None):
-        self.id = int(process_id)
-        self.is_alive = True
-        self.coordinator_id: Optional[int] = None
-        self.in_election = False
-
-        # Communication adapter (to be implemented for UPPAAL/Tron)
-        self.adapter = adapter
-
-        # Message queue for incoming messages from clients
-        self.message_queue: List[Message] = []
+        # Used to implement wait_until(coordinator_alive == true, timeout)
+        self.coord_event = threading.Event()
+        self.election_cancel = threading.Event()
         self.lock = threading.Lock()
 
-        # Event for waiting on election responses
-        self.election_event = threading.Event()
-        self.last_ok_from: Optional[int] = None
-
-        # Start worker thread to process incoming messages
-        self._worker_thread = threading.Thread(target=self._message_loop, daemon=True)
-        self._worker_thread.start()
-
-    def set_adapter(self, adapter: AdapterInterface):
-        self.adapter = adapter
-
-    # Message queue operations
-    def receive_message(self, message: Message):
-        with self.lock:
-            self.message_queue.append(message)
-
-    def inject_message(self, message_dict: Dict[str, Any]):
-        try:
-            msg = Message.from_dict(message_dict)
-            self.receive_message(msg)
-        except Exception as e:
-            print(f"[Process {self.id}] Failed to inject message: {e}")
-
-    def _pop_message(self) -> Optional[Message]:
-        with self.lock:
-            if not self.message_queue:
-                return None
-            return self.message_queue.pop(0)
-
-    def _message_loop(self):
-        while True:
-            if not self.is_alive:
-                time.sleep(0.05)
-                continue
-
-            msg = self._pop_message()
-            if msg is None:
-                time.sleep(0.01)
-                continue
-
-            # Handle different message types
-            if msg.type == MessageType.ELECTION:
-                self._handle_election_message(msg)
-            elif msg.type == MessageType.OK:
-                self._handle_ok_message(msg)
-            elif msg.type == MessageType.COORDINATOR:
-                self._handle_coordinator_message(msg)
-
-    def _handle_election_message(self, message: Message):
-        print(f"[Process {self.id}] Received ELECTION from {message.sender_id}")
-
-        # Send OK response
-        ok_msg = Message(MessageType.OK, self.id)
-        self._send_message(message.sender_id, ok_msg)
-
-        # If sender has lower ID and we're not in election, start our own election
-        if not self.in_election and message.sender_id < self.id:
-            threading.Thread(target=self.start_election, daemon=True).start()
-
-    def _handle_ok_message(self, message: Message):
-        if not self.is_alive:
-            return
-        print(f"[Process {self.id}] Received OK from {message.sender_id}")
-        self.last_ok_from = message.sender_id
-        self.in_election = False
-        self.election_event.set()
-
-    def _handle_coordinator_message(self, message: Message):
-        if not self.is_alive:
-            return
-        print(
-            f"[Process {self.id}] Process {message.sender_id} announced as COORDINATOR"
-        )
-        self.coordinator_id = message.sender_id
-        self.in_election = False
-        self.election_event.set()
-
-    def _send_message(self, receiver_id: int, message: Message) -> Optional[Message]:
-        if self.adapter is None:
-            print(
-                f"[Process {self.id}] No adapter configured; cannot send to {receiver_id}"
-            )
-            return None
-
-        if receiver_id not in KNOWN_CLIENTS:
-            print(
-                f"[Process {self.id}] Unknown client {receiver_id}; not in KNOWN_CLIENTS"
-            )
-            return None
-
-        msg_dict = message.to_dict()
-        try:
-            reply_dict = self.adapter.send(receiver_id, msg_dict)
-            if reply_dict:
-                return Message.from_dict(reply_dict)
-        except Exception as e:
-            print(f"[Process {self.id}] Adapter send failed: {e}")
-
-        return None
-
-    def _broadcast_message(self, message: Message) -> List[Message]:
-        if self.adapter is None:
-            print(f"[Process {self.id}] No adapter configured; cannot broadcast")
-            return []
-
-        msg_dict = message.to_dict()
-        try:
-            replies = self.adapter.broadcast(msg_dict)
-            return [Message.from_dict(r) for r in replies if r]
-        except Exception as e:
-            print(f"[Process {self.id}] Adapter broadcast failed: {e}")
-            return []
-
-    def start_election(self) -> Optional[int]:
-        if not self.is_alive:
-            return None
-
-        print(f"[Process {self.id}] Starting election")
-        self.in_election = True
-        self.last_ok_from = None
-        self.election_event.clear()
-
-        # Find clients with higher IDs
-        higher_ids = [cid for cid in KNOWN_CLIENTS if cid > self.id]
-
-        if not higher_ids:
-            # No higher IDs -> become coordinator immediately
-            self._become_coordinator()
-            return self.id
-
-        # Send ELECTION to all higher-ID clients
-        responses: List[Message] = []
-        for client_id in higher_ids:
-            print(f"[Process {self.id}] Sending ELECTION to client {client_id}")
-            election_msg = Message(MessageType.ELECTION, self.id)
-            resp = self._send_message(client_id, election_msg)
-            if resp and resp.type == MessageType.OK:
-                responses.append(resp)
-                self.last_ok_from = resp.sender_id
-                self.election_event.set()
-
-        if responses:
-            # Got synchronous OK responses, wait for coordinator announcement
-            print(
-                f"[Process {self.id}] Got OK from {[r.sender_id for r in responses]}; waiting for COORDINATOR"
-            )
-            self.in_election = False
-            waited = self.election_event.wait(timeout=2.0)
-
-            if self.coordinator_id is not None:
-                return self.coordinator_id
-
-            if not waited:
-                # Timeout - retry election
-                print(f"[Process {self.id}] Timeout waiting for COORDINATOR; retrying")
-                return self.start_election()
-
-            return self.coordinator_id
-
-        # No synchronous OKs; wait briefly for async OKs
-        got_ok = self.election_event.wait(timeout=0.25)
-        if got_ok and self.last_ok_from is not None:
-            print(
-                f"[Process {self.id}] Got async OK from {self.last_ok_from}; waiting for COORDINATOR"
-            )
-            self.in_election = False
-            waited = self.election_event.wait(timeout=2.0)
-
-            if self.coordinator_id is not None:
-                return self.coordinator_id
-
-            if not waited:
-                print(f"[Process {self.id}] Timeout waiting for COORDINATOR; retrying")
-                return self.start_election()
-
-            return self.coordinator_id
-
-        # No OKs at all -> become coordinator
-        self._become_coordinator()
-        return self.id
-
-    def _become_coordinator(self):
-        if not self.is_alive:
-            return
-
-        print(f"[Process {self.id}] I am the new COORDINATOR")
-        self.coordinator_id = self.id
-        self.in_election = False
-
-        # Announce to all clients
-        coordinator_msg = Message(MessageType.COORDINATOR, self.id)
-        for client_id in KNOWN_CLIENTS:
-            self._send_message(client_id, coordinator_msg)
-
-    def get_coordinator(self) -> Optional[int]:
-        return self.coordinator_id
-
-    def is_coordinator(self) -> bool:
-        return self.coordinator_id == self.id
-
-
-def set_known_clients(client_ids: List[int]):
-    global KNOWN_CLIENTS
-    KNOWN_CLIENTS = [int(cid) for cid in client_ids]
-    print(f"Set KNOWN_CLIENTS to: {KNOWN_CLIENTS}")
-
-
-# Global Flask app for receiving messages from UPPAAL/Tron
-app = Flask(__name__)
-
-# Global process instance (set via run_server)
-_global_process: Optional[BullyElectionProcess] = None
-
-# Server configuration
-SERVER_BASE_URL = "http://localhost:5000"
-REQUEST_TIMEOUT = 3.0
-
-
-def send_http_message(
-    receiver_id: int, message_dict: Dict[str, Any]
-) -> Optional[Dict[str, Any]]:
-    msg_type = message_dict.get("type")
-    if msg_type is None:
-        print("[HTTP] Message missing 'type' field")
-        return None
-
-    try:
-        # Construct endpoint based on message type
-        # Pattern: /api/{message_type}/{receiver_id}
-        endpoint = f"{SERVER_BASE_URL}/api/{msg_type.lower()}/{receiver_id}"
-
-        # Send message with JSON payload
-        response = requests.post(endpoint, json=message_dict, timeout=REQUEST_TIMEOUT)
-
-        status = response.status_code
-        print(f"[HTTP] Sent {msg_type} to client {receiver_id}, status: {status}")
-
-        # Handle response based on status code (similar to Java adapter)
-        if status == 200:
-            # Synchronous response available
-            try:
-                return response.json()
-            except Exception:
-                return None
-        elif status == 202:
-            # Accepted, will respond asynchronously
-            print(f"[HTTP] Client {receiver_id} will respond asynchronously")
-            return None
-        else:
-            print(f"[HTTP] Unexpected status {status} for client {receiver_id}")
-            return None
-
-    except requests.exceptions.Timeout:
-        print(f"[HTTP] Request to client {receiver_id} timed out")
-        return None
-    except requests.exceptions.ConnectionError:
-        print(f"[HTTP] Connection failed to client {receiver_id}")
-        return None
-    except Exception as e:
-        print(f"[HTTP] Error sending to client {receiver_id}: {e}")
-        return None
-
-
-# -------------------------
-# Flask endpoints for receiving messages from UPPAAL/Tron
-# -------------------------
-
-
-@app.route("/api/election/<int:sender_id>", methods=["POST"])
-def receive_election(sender_id: int):
-    if _global_process is None:
-        return jsonify({"error": "Process not initialized"}), 500
-
-    print(f"[FLASK] Received ELECTION request from client {sender_id}")
-
-    # Inject the ELECTION message into the process
-    message_dict = {"type": "ELECTION", "sender": sender_id, "payload": {}}
-    _global_process.inject_message(message_dict)
-
-    # Respond with OK (synchronous response pattern)
-    # The process will also send OK via HTTP, but this is for immediate feedback
-    ok_response = {"type": "OK", "sender": _global_process.id, "payload": {}}
-    return jsonify(ok_response), 200
-
-
-@app.route("/api/ok/<int:sender_id>", methods=["POST"])
-def receive_ok(sender_id: int):
-    if _global_process is None:
-        return jsonify({"error": "Process not initialized"}), 500
-
-    print(f"[FLASK] Received OK from client {sender_id}")
-
-    message_dict = {"type": "OK", "sender": sender_id, "payload": {}}
-    _global_process.inject_message(message_dict)
-
-    return jsonify({"message": "OK received"}), 200
-
-
-@app.route("/api/coordinator/<int:sender_id>", methods=["POST"])
-def receive_coordinator(sender_id: int):
-    if _global_process is None:
-        return jsonify({"error": "Process not initialized"}), 500
-
-    print(f"[FLASK] Received COORDINATOR announcement from client {sender_id}")
-
-    message_dict = {"type": "COORDINATOR", "sender": sender_id, "payload": {}}
-    _global_process.inject_message(message_dict)
-
-    return jsonify({"message": "Coordinator acknowledged"}), 200
-
-
-@app.route("/api/start_election", methods=["POST"])
-def trigger_election():
-    if _global_process is None:
-        return jsonify({"error": "Process not initialized"}), 500
-
-    print(f"[FLASK] Starting election on process {_global_process.id}")
-
-    # Capture the process reference for the closure
-    process = _global_process
-
-    # Start election in background thread
-    def run_election():
-        coordinator = process.start_election()
-        print(f"[FLASK] Election completed, coordinator: {coordinator}")
-
-    threading.Thread(target=run_election, daemon=True).start()
-
-    return jsonify(
-        {"message": "Election started", "process_id": _global_process.id}
-    ), 200
-
-
-@app.route("/api/status", methods=["GET"])
-def get_status():
-    if _global_process is None:
-        return jsonify({"error": "Process not initialized"}), 500
-
-    return jsonify(
-        {
-            "process_id": _global_process.id,
-            "is_alive": _global_process.is_alive,
-            "coordinator_id": _global_process.coordinator_id,
-            "in_election": _global_process.in_election,
-            "is_coordinator": _global_process.is_coordinator(),
-            "known_clients": KNOWN_CLIENTS,
+    def log(self, msg: str) -> None:
+        print(f"[Process {self.id}] {msg}", flush=True)
+
+    def send(self, msg_type: str, receiver_id: int, parameters: Dict[str, Any] | None = None) -> None:
+        if parameters is None:
+            parameters = {}
+
+        payload: dict[str, object] = {
+            "sender": self.id,
+            "receiver": receiver_id,
+            "type": msg_type,
+            "parameters": parameters,
         }
-    ), 200
+
+        receiver_url = self.known_processes.get(receiver_id)
+
+        # Always notify adapter if configured (so TRON sees the message)
+        if self.adapter_url:
+            try:
+                adapter_endpoint = f"{self.adapter_url}/api/message"
+                requests.post(adapter_endpoint, json=payload, timeout=HTTP_TIMEOUT)
+            except Exception as e:
+                self.log(f"Warning: failed to notify adapter at {self.adapter_url}: {e}")
+
+        # Real peer?
+        if receiver_url is not None:
+            try:
+                self.log(f"Sending {msg_type} to {receiver_id} at {receiver_url}")
+                requests.post(
+                    f"{receiver_url}/api/message",
+                    json=payload,
+                    timeout=HTTP_TIMEOUT,
+                )
+            except Exception as e:
+                self.log(f"Error sending {msg_type} to {receiver_id} at {receiver_url}: {e}")
+        else:
+            # No real HTTP peer for this id (e.g. virtual id)
+            self.log(f"No real peer for receiver {receiver_id}, will only notify adapter")
+
+    # --- Main loop: run() --------------------------------------------------
+
+    def run_forever(self) -> None:
+        # index already found in __init__
+        self.log(f"Known processes: {self.processes}, initial leader assumed: {self.leader}")
+
+        time.sleep(self.round_trip_time +1.5) # wait a bit for all processes to start
+
+        while True:
+            try:
+                with self.lock:
+                    current_leader = self.leader
+                    i_am_leader = (self.id == current_leader)
+
+                if not i_am_leader:
+                    # check_coordinator(); may raise TimeoutError
+                    self.check_coordinator(current_leader)
+            except TimeoutError:
+                with self.lock:
+                    should_start = not self.shut_up
+                if should_start:
+                    self.log("Leader timeout detected, starting election")
+                    self.start_election()
+
+            # wait(round_trip_time);
+            time.sleep(self.round_trip_time)
 
 
-# -------------------------
-# Simple HTTP Adapter (placeholder for Tron adapter)
-# -------------------------
+    # --- start_election() --------------------------------------------------
+
+    def start_election(self) -> None:
+        self.log("Starting election")
+        # shut_up = false;   # I am initiating an election
+        with self.lock:
+            self.election_cancel.clear()
+            my_index = self.index
+            processes_copy = list(self.processes)
+
+        # Ask all higher-ID processes if they are alive
+        # for i = index + 1; i < N; i++ {
+        for pid in processes_copy[my_index + 1 :]:
+            # time.sleep(self.round_trip_time)
+            if self.shut_up or self.election_cancel.is_set():
+                self.log("Election cancelled while contacting higher-ID processes")
+                break
+            self.log(f"Asking higher-id process {pid} via SHUT_UP")
+            self.send("shut_up", pid)
+
+        # Wait to see if any higher-ID process bullies me back
+        self.election_cancel.wait(timeout=self.round_trip_time)
+
+        if self.election_cancel.is_set():
+            self.log("Election cancelled while waiting for higher-ID replies")
+            with self.lock:
+                self.electing = False
+            return
+
+        # Nobody higher told me to shut up → I am the new leader
+        with self.lock:
+            self.leader = self.id
+            processes_copy = list(self.processes)
+            self.electing = False
+
+        self.log("No higher-id bully; I am the new leader, broadcasting ELECTED")
+        for pid in processes_copy:
+            self.send("elected", pid)
+        
+        self.electing = False
+
+    # --- receives(request) -------------------------------------------------
+
+    def receive(self, request_json: Dict[str, Any]) -> None:
+        """
+        Handle an incoming request according to the pseudocode's 'receives(request)'.
+        """
+        msg_type = request_json.get("type")
+        sender_id = int(request_json.get("sender"))
+        receiver_id = int(request_json.get("receiver"))
+
+        # Drop messages not intended for us
+        if receiver_id != self.id:
+            self.log(
+                f"Ignoring message type={msg_type} from {sender_id} intended for {receiver_id}"
+            )
+            return
+
+        self.log(f"Received {msg_type} from {sender_id}")
+
+        if msg_type == "shut_up":
+            self._handle_shut_up(sender_id)
+        elif msg_type == "elected":
+            self._handle_elected(sender_id)
+        elif msg_type == "check":
+            self._handle_check(sender_id)
+        elif msg_type == "answer":
+            self._handle_answer(sender_id)
+        else:
+            self.log(f"Unknown message type: {msg_type}")
+
+    def _handle_shut_up(self, sender_id: int) -> None:
+        # case shut_up:
+        with self.lock:
+            my_id = self.id
+
+        if sender_id < my_id and not self.shut_up:
+            # A lower-ID process is asking me to shut up → I bully them
+            self.log(
+                f"Received SHUT_UP from lower-id {sender_id}, bullying back and starting my own election"
+            )
+            self.send("shut_up", sender_id)
+            # Start election in a background thread so we don't block the HTTP handler
+            if not self.electing:
+                self.electing = True
+                threading.Thread(target=self.start_election, daemon=True).start()
+        else:
+            # A higher-ID process told me to shut up → I comply
+            self.log(f"Received SHUT_UP from higher-id {sender_id}, complying")
+            with self.lock:
+                self.shut_up = True
+                self.election_cancel.set() 
+
+    def _handle_elected(self, sender_id: int) -> None:
+        # case elected: leader = request.sender_id; shut_up = false;
+        self.log(f"Received ELECTED from {sender_id}, accepting as new leader")
+        with self.lock:
+            self.leader = sender_id
+            self.shut_up = False
+            self.election_cancel.set()
+
+    def _handle_check(self, sender_id: int) -> None:
+        # case check: only the leader should respond
+        with self.lock:
+            is_leader = (self.id == self.leader)
+
+        if is_leader:
+            self.log(f"Received CHECK from {sender_id}, replying ANSWER as I am leader")
+            self.send("answer", sender_id)
+        else:
+            self.log(
+                f"Received CHECK from {sender_id}, but I am not leader (leader is {self.leader})"
+            )
+
+    def _handle_answer(self, sender_id: int) -> None:
+        # case answer: coordinator_alive = true;
+        self.log(f"Received ANSWER from {sender_id}, marking coordinator as alive")
+        with self.lock:
+            self.coordinator_alive = True
+            self.coord_event.set()
+
+    # --- check_coordinator() ----------------------------------------------
+
+    def check_coordinator(self, leader_id: int) -> None:
+        self.log(f"Checking if leader {leader_id} is alive")
+        # coordinator_alive = false;
+        with self.lock:
+            self.coordinator_alive = False
+            self.coord_event.clear()
+
+        # send(request{type: "check", receiver: leader, sender: id});
+        self.send("check", leader_id)
+
+        # wait_until(coordinator_alive == true, timeout = round_trip_time);
+        alive = self.coord_event.wait(timeout=self.round_trip_time)
+
+        with self.lock:
+            if not alive or not self.coordinator_alive:
+                # if coordinator_alive == false: raise timeOut;
+                self.log("Leader did not respond in time – timeout")
+                raise TimeoutError("Coordinator did not respond")
+            else:
+                self.log("Leader responded to CHECK")
 
 
-class SimpleHTTPAdapter(AdapterInterface):
-    def send(
-        self, receiver_id: int, message_dict: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        return send_http_message(receiver_id, message_dict)
+# --- Flask wiring -----------------------------------------------------------
 
-    def broadcast(self, message_dict: Dict[str, Any]) -> List[Dict[str, Any]]:
-        responses = []
-        for client_id in KNOWN_CLIENTS:
-            resp = send_http_message(client_id, message_dict)
-            if resp:
-                responses.append(resp)
-        return responses
+app = Flask(__name__)
+bully_process: BullyProcess | None = None
 
 
-# -------------------------
-# Server runner
-# -------------------------
+@app.route("/api/message", methods=["POST"])
+def api_message():
+    """
+    Generic message endpoint that accepts the JSON request package:
+    {
+      "type": "...",
+      "sender": <int>,
+      "receiver": <int>,
+      "parameters": { ... }
+    }
+    """
+    global bully_process
+    if bully_process is None:
+        return jsonify({"error": "Process not initialized"}), 500
+
+    data = request.get_json(force=True, silent=True) or {}
+    bully_process.receive(data)
+    return jsonify({"status": "ok"})
 
 
-def run_server(
-    process_id: int, client_ids: List[int], host: str = "0.0.0.0", port: int = 5000
-):
-    global _global_process
+@app.route("/status", methods=["GET"])
+def status():
+    """
+    Simple debug endpoint to inspect local state.
+    """
+    global bully_process
+    if bully_process is None:
+        return jsonify({"error": "Process not initialized"}), 500
 
-    # Set up known clients
-    set_known_clients(client_ids)
-
-    # Create election process with HTTP adapter
-    adapter = SimpleHTTPAdapter()
-    _global_process = BullyElectionProcess(process_id, adapter)
-
-    print(f"\n{'=' * 60}")
-    print("Bully Election Process Started")
-    print(f"{'=' * 60}")
-    print(f"Process ID: {process_id}")
-    print(f"Known Clients: {client_ids}")
-    print(f"Server running on http://{host}:{port}")
-    print("\nEndpoints:")
-    print("  POST /api/election/<sender_id>    - Receive ELECTION from client")
-    print("  POST /api/ok/<sender_id>          - Receive OK from client")
-    print("  POST /api/coordinator/<sender_id> - Receive COORDINATOR from client")
-    print("  POST /api/start_election          - Trigger election manually")
-    print("  GET  /api/status                  - Get process status")
-    print(f"{'=' * 60}\n")
-
-    # Run Flask app
-    app.run(host=host, port=port, debug=False)
+    with bully_process.lock:
+        state = {
+            "id": bully_process.id,
+            "processes": bully_process.processes,
+            "leader": bully_process.leader,
+            "shut_up": bully_process.shut_up,
+            "round_trip_time": bully_process.round_trip_time,
+        }
+    return jsonify(state)
 
 
-def run_example():
-    # This process has ID 5, knows about clients 0,1,2,3,4,6,7,8,9
-    run_server(
-        process_id=5, client_ids=[0, 1, 2, 3, 4, 6, 7, 8, 9], host="0.0.0.0", port=5000
+def parse_args():
+    parser = argparse.ArgumentParser(description="Flask Bully Algorithm Process")
+    parser.add_argument("--id", type=int, required=True, help="ID of this process")
+    parser.add_argument(
+        "--processes",
+        type=str,
+        required=True,
+        help="Comma-separated list of all process IDs, e.g. 0,1,2,3",
+    )
+    parser.add_argument(
+        "--base-port",
+        type=int,
+        default=5000,
+        help="Base port; each process listens on base-port + id "
+             "(used if --peer-map is not given)",
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Default host for building URLs when --peer-map is not given",
+    )
+    parser.add_argument(
+        "--peer-map",
+        type=str,
+        help=(
+            "Explicit mapping of process IDs to URLs, e.g. "
+            '"0=10.0.0.1:6000,1=http://node1:7000,2=10.0.0.2:6000". '
+            "If provided, overrides --host/--base-port for known peers."
+        ),
+    )
+    parser.add_argument(
+        "--round-trip-time",
+        type=float,
+        default=1.0,
+        help="Estimated round-trip time in seconds",
+    )
+    parser.add_argument(
+        "--flask-host",
+        type=str,
+        default="0.0.0.0",
+        help="Flask bind host",
+    )
+    parser.add_argument(
+        "--auto-loop",
+        action="store_true",
+        help=(
+            "Enable the background leader-liveness loop (check_coordinator + "
+            "automatic elections). Leave this OFF for TRON conformance tests."
+        ),
+    )
+    parser.add_argument(
+        "--adapter-url",
+        type=str,
+        default=None,
+        help="Base URL of the TRON adapter (e.g. http://host.docker.internal:6000). "
+            "If omitted, no TRON notifications are sent.",
     )
 
 
+    return parser.parse_args()
+
+
+def parse_peer_map(spec: str) -> Dict[int, str]:
+    """
+    Parse a specification like:
+      "0=10.0.0.1:6000,1=http://node1:7000,2=10.0.0.2:6000"
+    into a dict {0: "http://10.0.0.1:6000", 1: "http://node1:7000", ...}.
+    """
+    mapping: Dict[int, str] = {}
+    if not spec:
+        return mapping
+
+    for entry in spec.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        if "=" not in entry:
+            raise ValueError(f"Invalid peer-map entry (no '='): {entry!r}")
+        k, v = entry.split("=", 1)
+        k = k.strip()
+        v = v.strip()
+        if not k or not v:
+            raise ValueError(f"Invalid peer-map entry: {entry!r}")
+        pid = int(k)
+        # If user gave just "host:port", prefix "http://"
+        if "://" in v:
+            url = v
+        else:
+            url = f"http://{v}"
+        mapping[pid] = url
+
+    return mapping
+
+def build_known_processes(host: str, base_port: int, process_ids: list[int]) -> Dict[int, str]:
+    """
+    Build a mapping id -> base URL, e.g. 0 -> "http://127.0.0.1:5000".
+    Used when --peer-map is not specified.
+    """
+    mapping: Dict[int, str] = {}
+    for pid in process_ids:
+        mapping[pid] = f"http://{host}:{base_port + pid}"
+    return mapping
+
+
+
 if __name__ == "__main__":
-    run_example()
+    args = parse_args()
+
+    # Which process IDs exist in the system
+    all_ids = [int(x) for x in args.processes.split(",") if x.strip() != ""]
+
+    # Choose mapping strategy
+    if args.peer_map:
+        known = parse_peer_map(args.peer_map)
+        # Optional sanity check: ensure all_ids are present
+        missing = [pid for pid in all_ids if pid not in known]
+        if missing:
+            raise SystemExit(
+                f"--peer-map missing entries for process IDs: {missing}"
+            )
+    else:
+        known = build_known_processes(args.host, args.base_port, all_ids)
+
+    bully_process = BullyProcess(
+        process_id=args.id,
+        processes=known,
+        round_trip_time=args.round_trip_time,
+        adapter_url=args.adapter_url
+    )
+
+    # Start the main bully loop in a background thread
+    if args.auto_loop:
+        loop_thread = threading.Thread(target=bully_process.run_forever, daemon=True)
+        loop_thread.start()
+        bully_process.log("Auto loop ENABLED (will check coordinator and start elections automatically)")
+    else:
+        bully_process.log("Auto loop DISABLED (TRON-friendly mode: only reacts to /api/start_election + messages)")
+
+
+    # Run Flask app on port base-port + id (still configurable per-node)
+    port = args.base_port + args.id
+    bully_process.log(f"Starting Flask server on port {port}")
+    app.run(
+        host=args.flask_host,
+        port=port,
+        debug=False,
+        use_reloader=False,
+        threaded=True,
+    )

@@ -1,0 +1,26 @@
+Inputs:  start_election
+Outputs: observe
+Adding "ES" using "start_election" by rule "transmitters on input channels belong to Env"
+Adding "N" using "start_election" by rule "receivers on input channels belong IUT"
+Adding "request" because of "N" by rule "internal channel belongs to IUT if it is used by IUT"
+Adding "start" because of "N" by rule "internal channel belongs to IUT if it is used by IUT"
+Adding "P3" using "request" by rule "process belongs to IUT if it shouts on internal IUT channel"
+Adding "P4" using "request" by rule "process belongs to IUT if it shouts on internal IUT channel"
+Adding "P1" using "request" by rule "process belongs to IUT if it shouts on internal IUT channel"
+Adding "P2" using "request" by rule "process belongs to IUT if it shouts on internal IUT channel"
+Adding "P0" using "request" by rule "process belongs to IUT if it shouts on internal IUT channel"
+Adding "last_observed" because of "P3" by rule "variable belongs to IUT if accessed by IUT without observable sync"
+Adding "type" because of "P3" by rule "variable belongs to IUT if accessed by IUT without observable sync"
+Adding "reserved" because of "P3" by rule "variable belongs to IUT if accessed by IUT without observable sync"
+Adding "sender" because of "P3" by rule "variable belongs to IUT if accessed by IUT without observable sync"
+Adding "reciever" because of "P3" by rule "variable belongs to IUT if accessed by IUT without observable sync"
+Adding "starter" because of "P3" by rule "variable belongs to IUT if accessed by IUT without observable sync"
+==== Partitioned =========================================
+Env procs: ES
+Env chans: 
+Env vars:  
+----------------------------------------------------------
+IUT procs: P3, P4, P1, P2, N, P0
+IUT chans: request, start
+IUT vars:  last_observed, reciever, reserved, sender, starter, type
+==========================================================

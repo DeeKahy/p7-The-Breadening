@@ -1,0 +1,117 @@
+digraph bully_xml {
+// printer friendly options, fill A4 landscape:
+  size="10.2,7.8"; ratio=fill; margin=0.2;
+  nodesep=0.3; // separation of labelled edges
+
+// fdp options:
+  K=1.25;
+
+// neato options:
+  epsilon=0.0001;
+
+  node[fontname="Helvetica-Bold"];
+  edge[fontname="Helvetica",fontsize=10];
+
+// legend:
+// process[shape=ellipse]; int[shape=rectangle]; chan[shape=diamond];
+
+// IUT processes:
+  node [shape=ellipse,peripheries=1,style=filled,fillcolor="#B8C0FF"];
+  P3; P4; P1; P2; N; P0; 
+// IUT channels:
+  node [shape=diamond,peripheries=1,style=filled,fillcolor="#B8C0FF"];
+  "request"; "start"; 
+// IUT variables:
+  node [shape=rectangle,peripheries=1,style=filled,fillcolor="#B8C0FF"];
+  last_observed; reciever; reserved; sender; starter; type; 
+// observable output channels (controlled by IUT):
+  node [shape=diamond,peripheries=2,style=filled,fillcolor="#B8C0FF"];
+  "observe"; 
+// observable input channels (controlled by Env):
+  node [shape=diamond,peripheries=2,style=filled,fillcolor="#C8FFC8"];
+  "start_election"; 
+// Env processes:
+  node [shape=ellipse,peripheries=1,style=filled,fillcolor="#C8FFC8"];
+  ES; 
+// set attributes for non-partitioned procs/chans/vars:
+// edges for write to variable:
+  edge [style=bold];
+  P3 -> type [label="(-)"];
+  P3 -> reserved [label="(-,request)"];
+  P3 -> sender [label="(-)"];
+  P3 -> reciever [label="(-)"];
+  P4 -> type [label="(-)"];
+  P4 -> reserved [label="(-,request)"];
+  P4 -> sender [label="(-)"];
+  P4 -> reciever [label="(-)"];
+  P1 -> type [label="(-)"];
+  P1 -> reserved [label="(-,request)"];
+  P1 -> sender [label="(-)"];
+  P1 -> reciever [label="(-)"];
+  P2 -> type [label="(-)"];
+  P2 -> reserved [label="(-,request)"];
+  P2 -> sender [label="(-)"];
+  P2 -> reciever [label="(-)"];
+  N -> last_observed [label="(observe,request)"];
+  N -> starter [label="(start_election)"];
+  P0 -> type [label="(-)"];
+  P0 -> reserved [label="(-,request)"];
+  P0 -> sender [label="(-)"];
+  P0 -> reciever [label="(-)"];
+// edges for read of variable:
+  edge [style=solid];
+  last_observed -> P3 [label="(-)"];
+  type -> P3 [label="(request)"];
+  reserved -> P3 [label="(-)"];
+  sender -> P3 [label="(request)"];
+  reciever -> P3 [label="(-)"];
+  starter -> P3 [label="(-)"];
+  last_observed -> P4 [label="(-)"];
+  type -> P4 [label="(request)"];
+  reserved -> P4 [label="(-)"];
+  sender -> P4 [label="(request)"];
+  reciever -> P4 [label="(-)"];
+  starter -> P4 [label="(-)"];
+  last_observed -> P1 [label="(-)"];
+  type -> P1 [label="(request)"];
+  reserved -> P1 [label="(-)"];
+  sender -> P1 [label="(request)"];
+  reciever -> P1 [label="(-)"];
+  starter -> P1 [label="(-)"];
+  last_observed -> P2 [label="(-)"];
+  type -> P2 [label="(request)"];
+  reserved -> P2 [label="(-)"];
+  sender -> P2 [label="(request)"];
+  reciever -> P2 [label="(-)"];
+  starter -> P2 [label="(-)"];
+  last_observed -> P0 [label="(-)"];
+  type -> P0 [label="(request)"];
+  reserved -> P0 [label="(-)"];
+  sender -> P0 [label="(request)"];
+  reciever -> P0 [label="(-)"];
+  starter -> P0 [label="(-)"];
+// channel transmit edges:
+  edge [style=bold];
+  P3 -> "request";
+  P4 -> "request";
+  P1 -> "request";
+  P2 -> "request";
+  ES -> "start_election";
+  N -> "observe";
+  N -> "start";
+  P0 -> "request";
+// channel receive edges:
+  edge [style=solid];
+  "request" -> P3;
+  "start" -> P3;
+  "request" -> P4;
+  "start" -> P4;
+  "request" -> P1;
+  "start" -> P1;
+  "request" -> P2;
+  "start" -> P2;
+  "request" -> N;
+  "start_election" -> N;
+  "request" -> P0;
+  "start" -> P0;
+}
