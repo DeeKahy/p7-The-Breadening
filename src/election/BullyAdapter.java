@@ -234,45 +234,6 @@ public class BullyAdapter implements Adapter {
         });
     }
 
-    /**
-     * Forward the JSON message to the real SUT peer with the given id,
-     * if we have a URL for it in realPeers[].
-     */
-    private void forwardToRealPeer(int receiverId, String jsonBody) {
-        if (receiverId < 0 ||
-            realPeers == null ||
-            receiverId >= realPeers.length) {
-            System.out.println(
-                "[ADAPTER] No real peer slot for receiver " + receiverId + "; not forwarding"
-            );
-            return;
-        }
-
-        URI base = realPeers[receiverId];
-        if (base == null) {
-            System.out.println(
-                "[ADAPTER] realPeers[" + receiverId + "] is null; not forwarding"
-            );
-            return;
-        }
-
-        URI target = base.resolve("/api/message");
-        HttpRequest req = HttpRequest.newBuilder(target)
-            .timeout(reqTimeout)
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
-            .build();
-
-        try {
-            http.send(req, HttpResponse.BodyHandlers.discarding());
-        } catch (Exception e) {
-            System.out.println(
-                "[ADAPTER] Failed to forward message to " +
-                receiverId + " at " + target + ": " + e.getMessage()
-            );
-        }
-    }
-
     // ─────────────────────────────────────────────────────────────────────
     // Real-peer mapping
     // ─────────────────────────────────────────────────────────────────────
@@ -323,69 +284,9 @@ public class BullyAdapter implements Adapter {
         System.out.println("[ADAPTER] Process ids = " + Arrays.toString(processIds));
     }
 
-    // private void waitForSomePeer() {
-    //     if (processIds == null || processIds.length == 0) {
-    //         System.out.println("[ADAPTER] No peers configured; skipping waitForSomePeer");
-    //         return;
-    //     }
-
-    //     int probeId = processIds[0];
-    //     URI base = realPeers[probeId];
-    //     if (base == null) {
-    //         System.out.println("[ADAPTER] realPeers[" + probeId + "] is null; skipping waitForSomePeer");
-    //         return;
-    //     }
-
-    //     URI statusUri = base.resolve("/status");
-    //     System.out.println("[ADAPTER] Waiting for at least peer " + probeId + " at " + statusUri);
-
-    //     while (true) {
-    //         try {
-    //             HttpRequest req = HttpRequest.newBuilder(statusUri)
-    //                 .timeout(Duration.ofSeconds(2))
-    //                 .GET()
-    //                 .build();
-
-    //             HttpResponse<String> resp =
-    //                 http.send(req, HttpResponse.BodyHandlers.ofString());
-
-    //             if (resp.statusCode() == 200) {
-    //                 System.out.println("[ADAPTER] Peer " + probeId + " is up: " + safe(resp.body()));
-    //                 return;
-    //             } else {
-    //                 System.out.println(
-    //                     "[ADAPTER] Peer " + probeId + " not ready, status " +
-    //                     resp.statusCode()
-    //                 );
-    //             }
-    //         } catch (Exception e) {
-    //             System.out.println(
-    //                 "[ADAPTER] Peer " + probeId + " not yet reachable: " + e.getMessage()
-    //             );
-    //         }
-
-    //         try {
-    //             Thread.sleep(1000L);
-    //         } catch (InterruptedException ie) {
-    //             Thread.currentThread().interrupt();
-    //             return;
-    //         }
-    //     }
-    // }
-
     // ─────────────────────────────────────────────────────────────────────
     // Type mapping
     // ─────────────────────────────────────────────────────────────────────
-
-    private String typeToName(int type) {
-        switch (type) {
-            case 0: return "check";
-            case 1: return "answer";
-            case 2: return "shut_up";
-            case 3: return "elected";
-            default: return null;
-        }
-    }
 
     private int nameToType(String name) {
         if (name == null) return -1;
@@ -471,10 +372,6 @@ public class BullyAdapter implements Adapter {
         ex.sendResponseHeaders(status, bytes.length);
         ex.getResponseBody().write(bytes);
         ex.close();
-    }
-
-    private String safe(String s) {
-        return (s == null) ? "" : s.replace("\n", "\\n");
     }
 
     // ─────────────────────────────────────────────────────────────────────

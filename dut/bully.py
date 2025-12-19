@@ -301,26 +301,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Flask Bully Algorithm Process")
     parser.add_argument("--id", type=int, required=True, help="ID of this process")
     parser.add_argument(
-        "--processes",
-        type=str,
-        required=True,
-        help="Comma-separated list of all process IDs, e.g. 0,1,2,3",
-    )
-    parser.add_argument(
-        "--base-port",
-        type=int,
-        default=5000,
-        help="Base port; each process listens on base-port + id "
-             "(used if --peer-map is not given)",
-    )
-    parser.add_argument(
-        "--host",
-        type=str,
-        default="127.0.0.1",
-        help="Default host for building URLs when --peer-map is not given",
-    )
-    parser.add_argument(
         "--peer-map",
+        required=True,
         type=str,
         help=(
             "Explicit mapping of process IDs to URLs, e.g. "
@@ -329,16 +311,17 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--adapter-url",
+        type=str,
+        default=None,
+        help="Base URL of the TRON adapter (e.g. http://host.docker.internal:6000). "
+            "If omitted, no TRON notifications are sent.",
+    )
+    parser.add_argument(
         "--round-trip-time",
         type=float,
         default=1.0,
         help="Estimated round-trip time in seconds",
-    )
-    parser.add_argument(
-        "--flask-host",
-        type=str,
-        default="0.0.0.0",
-        help="Flask bind host",
     )
     parser.add_argument(
         "--auto-loop",
@@ -348,12 +331,20 @@ def parse_args():
             "automatic elections). Leave this OFF for TRON conformance tests."
         ),
     )
+    
+    # Flask server binding options
     parser.add_argument(
-        "--adapter-url",
+        "--bind-port",
+        type=int,
+        default=5000,
+        help="Base port; each process listens on base-port + id "
+             "(used if --peer-map is not given)",
+    )
+    parser.add_argument(
+        "--flask-host",
         type=str,
-        default=None,
-        help="Base URL of the TRON adapter (e.g. http://host.docker.internal:6000). "
-            "If omitted, no TRON notifications are sent.",
+        default="0.0.0.0",
+        help="Flask bind host",
     )
 
 
@@ -382,6 +373,7 @@ def parse_peer_map(spec: str) -> Dict[int, str]:
         if not k or not v:
             raise ValueError(f"Invalid peer-map entry: {entry!r}")
         pid = int(k)
+
         # If user gave just "host:port", prefix "http://"
         if "://" in v:
             url = v
@@ -391,35 +383,13 @@ def parse_peer_map(spec: str) -> Dict[int, str]:
 
     return mapping
 
-def build_known_processes(host: str, base_port: int, process_ids: list[int]) -> Dict[int, str]:
-    """
-    Build a mapping id -> base URL, e.g. 0 -> "http://127.0.0.1:5000".
-    Used when --peer-map is not specified.
-    """
-    mapping: Dict[int, str] = {}
-    for pid in process_ids:
-        mapping[pid] = f"http://{host}:{base_port + pid}"
-    return mapping
-
 
 
 if __name__ == "__main__":
     args = parse_args()
 
-    # Which process IDs exist in the system
-    all_ids = [int(x) for x in args.processes.split(",") if x.strip() != ""]
-
     # Choose mapping strategy
-    if args.peer_map:
-        known = parse_peer_map(args.peer_map)
-        # Optional sanity check: ensure all_ids are present
-        missing = [pid for pid in all_ids if pid not in known]
-        if missing:
-            raise SystemExit(
-                f"--peer-map missing entries for process IDs: {missing}"
-            )
-    else:
-        known = build_known_processes(args.host, args.base_port, all_ids)
+    known = parse_peer_map(args.peer_map)
 
     bully_process = BullyProcess(
         process_id=args.id,
@@ -438,11 +408,9 @@ if __name__ == "__main__":
 
 
     # Run Flask app on port base-port + id (still configurable per-node)
-    port = args.base_port + args.id
-    bully_process.log(f"Starting Flask server on port {port}")
     app.run(
         host=args.flask_host,
-        port=port,
+        port=args.bind_port,
         debug=False,
         use_reloader=False,
         threaded=True,
