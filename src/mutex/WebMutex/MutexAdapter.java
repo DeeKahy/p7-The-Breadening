@@ -13,9 +13,9 @@ import java.util.concurrent.*;
 
 /**
  * Adapter that maps the three channels of the UPPAAL‑TRON model
- *   request(id)  →  GET /api/requesting/{id}
- *   grant(id)    ←  HTTP 200 "okay go …"
- *   done(id)     →  GET /api/returning/{id}
+ *   request(id)  →  GET /api/request/{id}   Output
+ *   grant(id)    ←  HTTP 200 "okay go …"       Input
+ *   done(id)     →  GET /api/returning/{id}    Output
  *
  * Updated to handle all Flask server status codes:
  *   - 200: proceed / returned
@@ -47,15 +47,17 @@ public class MutexAdapter implements Adapter {
     private final Duration reqTimeout = Duration.ofSeconds(3);
 
     private final ScheduledExecutorService sched =
-        Executors.newScheduledThreadPool(2);
+        Executors.newSingleThreadScheduledExecutor();
+
+    // Executors.newScheduledThreadPool(1);
 
     // ── Adapter ⇄ TRON interface ────────────────────────────────────────────
     @Override
     public void configure(Reporter reporter) throws TronException, IOException {
         this.reporter = reporter;
 
-        reporter.setTimeUnit(50_000); // 50 ms per model time unit
-        reporter.setTimeout(1_000_000); // test budget: 100 s
+        reporter.setTimeUnit(100_000); // 50 ms per model time unit
+        reporter.setTimeout(2_000); // test budget: 100 s
 
         // Bind existing *global* int variables – not the template constant `id`!
         IN_REQUEST = reporter.addInput("request");
@@ -68,27 +70,51 @@ public class MutexAdapter implements Adapter {
         reporter.addVarToOutput(OUT_GRANT, "granted_c_id");
     }
 
+    //chatgpt
+    private final ConcurrentHashMap<Integer, ScheduledFuture<?>> pollRetry =
+        new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, Boolean> wantsGrant =
+        new ConcurrentHashMap<>();
+
+    private void stopPolling(int cid) {
+        //chatgpt
+        wantsGrant.put(cid, false);
+        ScheduledFuture<?> f = pollRetry.remove(cid);
+        if (f != null) f.cancel(false);
+    }
+
+    private void schedulePoll(int cid, long delay, TimeUnit unit) {
+        //chatgpt
+        // Kun schedule hvis vi stadig venter på grant
+        if (!wantsGrant.getOrDefault(cid, false)) return;
+
+        ScheduledFuture<?> old = pollRetry.put(
+            cid,
+            sched.schedule(() -> pollRequest(cid), delay, unit)
+        );
+        if (old != null) old.cancel(false); // cancel gammel retry
+    }
+
     @Override
     public void perform(int chan, int[] params) {
-        // every bound channel carries ONE integer parameter – the client id
-        int cid = params[0];
+        //int v = params[0];
 
         if (chan == IN_REQUEST) {
-            System.out.println(
-                "[ADAPTER] perform: request(" + cid + ") - calling pollRequest"
-            );
-            pollRequest(cid);
+            int cid = params[0];
+            stopPolling(cid);
+            wantsGrant.put(cid, true);
+            sched.execute(() -> pollRequest(cid)); // <-- ikke kald direkte
         } else if (chan == IN_DONE) {
-            System.out.println(
-                "[ADAPTER] perform: done(" + cid + ") - calling sendDone"
-            );
-            sendDone(cid);
+            int cid = params[0];
+            stopPolling(cid);
+            sched.execute(() -> sendDone(cid)); // <-- ikke kald direkte
         }
     }
 
     // ── request → (poll) → grant loop ───────────────────────────────────────
     private void pollRequest(int cid) {
-        long startTime = System.nanoTime();
+        if (!wantsGrant.getOrDefault(cid, false)) return;
+
         HttpRequest req = HttpRequest.newBuilder(
             base.resolve("/api/requesting/" + cid)
         )
@@ -96,64 +122,31 @@ public class MutexAdapter implements Adapter {
             .GET()
             .build();
 
-        http
-            .sendAsync(req, HttpResponse.BodyHandlers.ofString())
-            .thenAccept(resp -> {
-                long endTime = System.nanoTime();
-                long elapsedMs = (endTime - startTime) / 1_000_000;
-                int status = resp.statusCode();
+        try {
+            HttpResponse<String> resp = http.send(
+                req,
+                HttpResponse.BodyHandlers.ofString()
+            );
 
-                System.out.println(
-                    "[ADAPTER] pollRequest(" +
-                        cid +
-                        ") received status " +
-                        status +
-                        " after " +
-                        elapsedMs +
-                        "ms"
-                );
+            int status = resp.statusCode();
 
-                switch (status) {
-                    case 200: // proceed - grant access
-                        System.out.println(
-                            "[ADAPTER] Reporting grant(" + cid + ") to TRON"
-                        );
-                        reporter.report(OUT_GRANT, new int[] { cid });
-                        System.out.println(
-                            "[ADAPTER] Grant(" + cid + ") reported successfully"
-                        );
-                        break;
-                    case 202: // queued - keep polling
-                    case 409: // already_in_queue - keep polling
-                        sched.schedule(
-                            () -> pollRequest(cid),
-                            50,
-                            TimeUnit.MILLISECONDS
-                        );
-                        break;
-                    default:
-                        System.err.println(
-                            "Unexpected status " +
-                                status +
-                                " for request(" +
-                                cid +
-                                "): " +
-                                resp.body()
-                        );
-                        sched.schedule(
-                            () -> pollRequest(cid),
-                            2,
-                            TimeUnit.SECONDS
-                        );
-                }
-            })
-            .exceptionally(ex -> {
-                System.err.println(
-                    "Request failed for client " + cid + ": " + ex.getMessage()
-                );
-                sched.schedule(() -> pollRequest(cid), 2, TimeUnit.SECONDS);
-                return null;
-            });
+            if (!wantsGrant.getOrDefault(cid, false)) return;
+
+            switch (status) {
+                case 200:
+                    if (!wantsGrant.getOrDefault(cid, false)) return;
+                    System.out.println("[ADAPTER] REPORT grant(" + cid + ")");
+                    reporter.report(OUT_GRANT, new int[] { cid });
+                    stopPolling(cid);
+                    break;
+                case 202:
+                case 409:
+                default:
+                    schedulePoll(cid, 5, TimeUnit.MILLISECONDS);
+            }
+        } catch (Exception ex) {
+            schedulePoll(cid, 5, TimeUnit.MILLISECONDS);
+        }
     }
 
     // ── done → (maybe retry) ────────────────────────────────────────────────
@@ -172,26 +165,10 @@ public class MutexAdapter implements Adapter {
                 String body = safe(resp.body());
 
                 switch (status) {
-                    case 200: // returned - grant next client if present
-                        try {
-                            // Parse JSON response to get "next" field
-                            if (body.contains("\"next\"")) {
-                                String nextStr = body
-                                    .split("\"next\"")[1].split(":")[1].split(
-                                        "[,}]"
-                                    )[0].trim()
-                                    .replace("\"", "");
-                                int nextId = Integer.parseInt(nextStr);
-                                reporter.report(
-                                    OUT_GRANT,
-                                    new int[] { nextId }
-                                );
-                            }
-                        } catch (Exception e) {
-                            System.err.println(
-                                "Failed to parse next client from: " + body
-                            );
-                        }
+                    case 200: // returned - ok
+                        System.out.println(
+                            "[ADAPTER] done(" + cid + ") ok (returned)"
+                        );
                         break;
                     case 204: // queue_empty - nothing to do
                         // Successfully returned, queue is now empty

@@ -147,29 +147,47 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
-# 1. Start Flask server
-echo -e "${BLUE}[3/5] Starting Python server (port 5000)...${NC}"
-cd "${DUT_PATH}"
-python3 main.py > ../../logs/server.log 2>&1 &
-SERVER_PID=$!
-cd ../..
-echo "Python server PID: $SERVER_PID"
-sleep 3  # Give the server time to start
+# 1. Start Flask server(s)
+if [ "$VERSION" = "web" ]; then
+    echo -e "${BLUE}[3/5] Starting Python servers (WebVersion - 3 processes on ports 4999, 5000, 5001)...${NC}"
+    cd "${DUT_PATH}"
+    python3 main.py --id -1 --processes "0,1,2" --peer-map "0=http://localhost:4999,1=http://localhost:5000,2=http://localhost:5001" > ../../logs/server.log 2>&1 &
+    SERVER_PID=$!
+    cd ../..
+    echo "Python server PID: $SERVER_PID"
+    sleep 3  # Give the server time to start
 
-# Check if server started successfully
-if ! ps -p $SERVER_PID > /dev/null; then
-    echo -e "${RED}Failed to start Python server!${NC}"
-    echo "Check logs/server.log for details"
-    exit 1
+    # Check if server started successfully
+    if ! ps -p $SERVER_PID > /dev/null; then
+        echo -e "${RED}Failed to start Python server!${NC}"
+        echo "Check logs/server.log for details"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Python servers running (WebVersion)${NC}"
+else
+    echo -e "${BLUE}[3/5] Starting Python server (SocketVersion - port 5000)...${NC}"
+    cd "${DUT_PATH}"
+    python3 main.py > ../../logs/server.log 2>&1 &
+    SERVER_PID=$!
+    cd ../..
+    echo "Python server PID: $SERVER_PID"
+    sleep 3  # Give the server time to start
+
+    # Check if server started successfully
+    if ! ps -p $SERVER_PID > /dev/null; then
+        echo -e "${RED}Failed to start Python server!${NC}"
+        echo "Check logs/server.log for details"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Python server running (SocketVersion)${NC}"
 fi
-echo -e "${GREEN}✓ Python server running${NC}"
 echo ""
 
 # 2. Start Java adapter
 echo -e "${BLUE}[4/5] Starting MutexAdapter (port 9999)...${NC}"
 # Set the correct base URL depending on the version
 if [ "$VERSION" = "web" ]; then
-    MUTEX_BASE_URL="http://localhost:5000"
+    MUTEX_BASE_URL="http://localhost:4999"
 else
     MUTEX_BASE_URL="ws://localhost:5000"
 fi

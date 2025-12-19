@@ -1,73 +1,368 @@
 # Importing required functions
-from flask import Flask, request, jsonify
+import argparse
+from typing import Any, Dict
+
+import requests
+from flask import Flask, jsonify, request
 
 # Flask constructor
 app = Flask(__name__)
 
 
-isAvailable = True
-queue = []
+@app.route("/api/message", methods=["POST"])
+def api_message():
+    global centralized
+    if centralized is None:
+        return jsonify({"error": "Process not initialized"}), 500
+
+    data = request.get_json(force=True, silent=True) or {}
+    centralized.receive(data)
+    return jsonify({"status": "ok"}), 200
 
 
-@app.get('/api/requesting/<clientno>')
-def requesting(clientno):
-    global isAvailable, queue
+class Centralized:
+    def __init__(
+        self,
+        processes,
+        process_id,
+        round_trip_time,
+        isAvailable=True,
+        queue=None,
+        granted_id=None,
+        parameters=None,
+    ):
+        self.id = process_id
+        self.known_processes = processes
+        self.round_trip_time = round_trip_time
 
-    if clientno not in queue:
-        queue.append(clientno)
+        self.isAvailable = isAvailable
+        self.queue = [] if queue is None else queue
+        self.granted_id = granted_id
+        self.parameters = {} if parameters is None else parameters
 
-    if queue.index(clientno) == 0:
-        isAvailable = False
-        return jsonify({
-            "message": "proceed",
-            "position": 0
-        }), 200 #"okay go right straight totally ahead"
-    elif queue.index(clientno) > 0:
-        return jsonify({
-            "message": "queued",
-            "position": queue.index(clientno)
-        }), 202 #"you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
+    def log(self, msg: str) -> None:
+        print(f"[Process {self.id}] {msg}", flush=True)
+
+    def send(
+        self, msg_type: str, receiver: int, parameters: Dict[str, Any] | None = None
+    ) -> None:
+        """
+        Send an HTTP POST to the receiver's /api/message endpoint with the required JSON format:
+        {
+          "type": "<msg_type>",
+          "sender": <my id>,
+          "receiver": <receiver id>,
+          "parameters": { ... }
+        }
+        """
+        if parameters is None:
+            parameters = {}
+
+        payload = {
+            "type": msg_type,
+            "sender": self.id,
+            "receiver": receiver,
+            "parameters": parameters,
+        }
+
+        url = self.known_processes.get(receiver)
+
+        if url is None:
+            # Special case: UPPAAL can send CHECK with leader = -1.
+            # We still want TRON to see this message, so route it via ANY fake node port,
+            # but keep receiver = -1 in the JSON.
+            if receiver < 0 and self.known_processes:
+                # Just use the first known URL (e.g. node 0 at port 5000)
+                url = next(iter(self.known_processes.values()))
+                self.log(f"Routing {msg_type} to virtual receiver {receiver} via {url}")
+            else:
+                self.log(f"Unknown receiver {receiver}, cannot send {msg_type}")
+                return
+
+        try:
+            self.log(f"Sending {msg_type} to {receiver} at {url}")
+            requests.post(
+                f"{url}/api/message",
+                json=payload,
+                timeout=self.round_trip_time / 2,
+            )
+        except requests.RequestException as e:
+            self.log(f"Failed to send {msg_type} to {receiver}: {e}")
+
+    def handle_request(self, clientno: int):
+        if clientno not in self.queue:
+            self.queue.append(clientno)
+
+        if self.queue.index(clientno) == 0 and self.isAvailable:
+            self.isAvailable = False
+            self.granted_id = clientno
+            self.send("proceed", clientno)
+            # return jsonify(
+            #    {"message": "proceed", "position": 0}
+            # ), 200  # "okay go right straight totally ahead"
+        else:  # queue.index(clientno) > 0:
+            self.send("queued", clientno)
+            # return (
+            #    jsonify({"message": "queued", "position": self.queue.index(clientno)}),
+            #    202,
+            # )  # "you have now been queued, i will return when client[" + str(queue.index(clientno) - 1 ) +  "] has returned"
+
+    def handle_done(self, sender_id: int):
+        if sender_id == self.granted_id:
+            self.queue.pop(0)
+            self.isAvailable = True
+            if len(self.queue) > 0:
+                self.send_grant()
+                self.isAvailable = False
+
+    def send_grant(self):
+        self.granted_id = self.queue[0]
+        self.log(f"Giving head of queue {self.granted_id} GRANT")
+        self.send("grant", self.granted_id)
+
+    def receive(self, request_json: Dict[str, Any]) -> None:
+        """
+        Handle an incoming request according to the pseudocode's 'receives(request)'.
+        """
+        msg_type = request_json.get("type")
+        sender_id = int(request_json.get("sender"))
+        receiver_id = int(request_json.get("receiver"))
+
+        # Drop messages not intended for us
+        if receiver_id != self.id:
+            self.log(
+                f"Ignoring message type={msg_type} from {sender_id} intended for {receiver_id}"
+            )
+            return
+
+        self.log(f"Received {msg_type} from {sender_id}")
+
+        if msg_type == "request":
+            self.handle_request(sender_id)
+        elif msg_type == "done":
+            self.handle_done(sender_id)
+
+
+# --- Flask wiring -----------------------------------------------------------
+
+# app = Flask(__name__)
+centralized: Centralized | None = None
+
+
+@app.get("/api/requesting/<int:clientno>")
+def api_requesting(clientno: int):
+    global centralized
+    if centralized is None:
+        return jsonify({"error": "Process not initialized"}), 500
+
+    # tilføj til kø hvis ikke allerede
+    if clientno not in centralized.queue:
+        centralized.queue.append(clientno)
+
+    # hvis du er forrest og serveren er fri -> proceed
+    if (
+        centralized.isAvailable
+        and centralized.queue
+        and centralized.queue[0] == clientno
+    ):
+        centralized.isAvailable = False
+        centralized.granted_id = clientno
+        return jsonify({"message": "proceed"}), 200
+
+    # ellers: stadig queued (også selvom du allerede er i kø)
+    return jsonify(
+        {"message": "queued", "position": centralized.queue.index(clientno)}
+    ), 202
+
+
+@app.get("/api/returning/<int:clientno>")
+def api_returning_id(clientno: int):
+    global centralized
+
+    if clientno not in centralized.queue:
+        return jsonify({"message": "not_in_queue"}), 409
+
+    if centralized.queue[0] != clientno:
+        return jsonify(
+            {"message": "not_your_turn", "position": centralized.queue.index(clientno)}
+        ), 423
+
+    centralized.queue.pop(0)
+
+    # frigiv altid – næste får lov når den poller /api/requesting/<id>
+    centralized.isAvailable = True
+    centralized.granted_id = None
+
+    if centralized.queue:
+        return jsonify({"message": "returned", "next": centralized.queue[0]}), 200
     else:
-        return jsonify({
-            "message": "already_in_queue",
-            "position": queue.index(clientno)
-        }), 409 #"you are already in the queue, please wait until client[" + str(queue.index(clientno) - 1 ) + "] has returned"
+        return jsonify({"message": "queue_empty"}), 204
 
 
-@app.get('/api/returning/<clientno>')
-def returning(clientno):
-    global isAvailable, queue
+@app.route("/api/returning", methods=["POST"])
+def api_returning():
+    """
+    Generic message endpoint that accepts the JSON request package:
+    {
+      "type": "...",
+      "sender": <int>,
+      "receiver": <int>,
+      "parameters": { ... }
+    }
+    """
+    global centralized
+    if centralized is None:
+        return jsonify({"error": "Process not initialized"}), 500
 
-    if not queue:
-        return jsonify({"message": "queue_empty_error"}), 500 #"something seriously went wrong go fix anders"
+    data = request.get_json(force=True, silent=True) or {}
+    centralized.receive(data)
+    return jsonify({"status": "ok"})
 
-    if clientno != queue[0]:
-        if clientno in queue:
-            return jsonify({
-                "message": "not_your_turn",
-                "position": queue.index(clientno)
-            }), 423 #"Not your turn yet, please wait until client[" + str(queue.index(clientno) - 1 ) + "] has returned"
+
+@app.route("/api/request", methods=["POST"])
+def api_request():
+    """
+    Generic message endpoint that accepts the JSON request package:
+    {
+      "type": "...",
+      "sender": <int>,
+      "receiver": <int>,
+      "parameters": { ... }
+    }
+    """
+
+    global centralized
+    if centralized is None:
+        return jsonify({"error": "Process not initialized"}), 500
+
+    data = request.get_json(force=True, silent=True) or {}
+    centralized.receive(data)
+    return jsonify({"status": "ok"})
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Centralized Mutex Algorithm")
+    parser.add_argument("--id", type=int, required=True, help="ID of this process")
+    parser.add_argument(
+        "--processes",
+        type=str,
+        required=True,
+        help="Comma-separated list of all process IDs, e.g. 0,1,2,3",
+    )
+    parser.add_argument(
+        "--base-port",
+        type=int,
+        default=5000,
+        help="Base port; each process listens on base-port + id "
+        "(used if --peer-map is not given)",
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Default host for building URLs when --peer-map is not given",
+    )
+    parser.add_argument(
+        "--peer-map",
+        type=str,
+        help=(
+            "Explicit mapping of process IDs to URLs, e.g. "
+            '"0=10.0.0.1:6000,1=http://node1:7000,2=10.0.0.2:6000". '
+            "If provided, overrides --host/--base-port for known peers."
+        ),
+    )
+    parser.add_argument(
+        "--round-trip-time",
+        type=float,
+        default=1.0,
+        help="Estimated round-trip time in seconds",
+    )
+    parser.add_argument(
+        "--flask-host",
+        type=str,
+        default="0.0.0.0",
+        help="Flask bind host",
+    )
+    return parser.parse_args()
+
+
+def parse_peer_map(spec: str) -> Dict[int, str]:
+    """
+    Parse a specification like:
+      "0=10.0.0.1:6000,1=http://node1:7000,2=10.0.0.2:6000"
+    into a dict {0: "http://10.0.0.1:6000", 1: "http://node1:7000", ...}.
+    """
+    mapping: Dict[int, str] = {}
+    if not spec:
+        return mapping
+
+    for entry in spec.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        if "=" not in entry:
+            raise ValueError(f"Invalid peer-map entry (no '='): {entry!r}")
+        k, v = entry.split("=", 1)
+        k = k.strip()
+        v = v.strip()
+        if not k or not v:
+            raise ValueError(f"Invalid peer-map entry: {entry!r}")
+        pid = int(k)
+        # If user gave just "host:port", prefix "http://"
+        if "://" in v:
+            url = v
         else:
-            return jsonify({
-                "message": "not_in_queue"
-            }), 409 #"You are not in the queue"
-    else:
-        queue.pop(0)
+            url = f"http://{v}"
+        mapping[pid] = url
 
-        if queue:
-            isAvailable = False
-            return jsonify({
-                "message": "returned",
-                "next": queue[0]
-            }), 200 #"Returning: " + str(clientno) + " next is " + str(queue[0])
-        else:
-            isAvailable = True
-            return jsonify({
-                "message": "queue_empty"
-            }), 204 #"Queue is now empty."
+    return mapping
+
+
+def build_known_processes(
+    host: str, base_port: int, process_ids: list[int]
+) -> Dict[int, str]:
+    """
+    Build a mapping id -> base URL, e.g. 0 -> "http://127.0.0.1:5000".
+    Used when --peer-map is not specified.
+    """
+    mapping: Dict[int, str] = {}
+    for pid in process_ids:
+        mapping[pid] = f"http://{host}:{base_port + pid}"
+    return mapping
 
 
 # Main Driver Function
-if __name__ == '__main__':
-    # Run the application on the local development server
-    app.run(debug=True)
+if __name__ == "__main__":
+    args = parse_args()
+
+    all_ids = [int(x) for x in args.processes.split(",") if x.strip() != ""]
+
+    # Choose mapping strategy
+    if args.peer_map:
+        known = parse_peer_map(args.peer_map)
+        # Optional sanity check: ensure all_ids are present
+        missing = [pid for pid in all_ids if pid not in known]
+        if missing:
+            raise SystemExit(f"--peer-map missing entries for process IDs: {missing}")
+    else:
+        known = build_known_processes(args.host, args.base_port, all_ids)
+
+    centralized = Centralized(
+        process_id=args.id,
+        processes=known,
+        round_trip_time=args.round_trip_time,
+    )
+
+    # loop_thread = threading.Thread(target=centralized.run_forever, daemon=True)
+    # loop_thread.start()
+
+    # Run Flask app on port base-port + id (still configurable per-node)
+    port = args.base_port + args.id
+    centralized.log(f"Starting Flask server on port {port}")
+    app.run(
+        host=args.flask_host,
+        port=port,
+        debug=False,
+        use_reloader=False,
+        threaded=False,
+    )
