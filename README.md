@@ -4,9 +4,9 @@ This project provides an automated testing environment for mutex implementations
 
 ## Prerequisites
 
-### 1. Install UPPAAL TRON
+### 1. Install TRON
 
-Download UPPAAL TRON and place it **one folder above** this repository (at the same level as the repository folder).
+Download TRON and place it **one folder above** this repository (at the same level as the repository folder).
 
 Your directory structure should look like this:
 
@@ -21,10 +21,10 @@ parent-directory/
     └── ...
 ```
 
-**Download UPPAAL TRON:**
-- Visit the UPPAAL website to download the appropriate version for your system
+**Download TRON:**
+- Visit the TRON website to download the appropriate version for your system
 - Extract the archive to the parent directory (one level above this repo)
-- Ensure the `tron` executable is at `../uppaal-tron-1.5-linux/tron` relative to this repo
+- Ensure the `tron` executable is at `../uppaal-tron-1.5-linux/tron` relative to this repo (version string matters)
 
 **For Linux users:** You may need to install 32-bit libraries:
 
